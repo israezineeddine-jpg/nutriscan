@@ -27,21 +27,33 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install npm dependencies
-        run: npm install
+      - name: Install Capacitor and dependencies
+        run: |
+          npm install --save @capacitor/core@^6.1.2 @capacitor/android@^6.1.2
+          npm install --save-dev @capacitor/cli@^6.1.2
+
+      - name: Initialize Capacitor (if needed)
+        run: |
+          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
+            npx cap init "NutriScan" "com.zineeddine.nutriscan" --web-dir=www
+          fi
 
       - name: Add Android platform
-        run: npx cap add android || echo "Android platform already added"
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
 
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Inject camera & internet permissions
+      - name: Inject camera permissions in AndroidManifest
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
             sed -i 's|<uses-permission android:name="android.permission.INTERNET" />|<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />|' "$MANIFEST"
           fi
+          echo "=== AndroidManifest.xml ==="
           cat "$MANIFEST"
 
       - name: Grant execute permission for gradlew
@@ -49,17 +61,17 @@ jobs:
 
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK artifact
+      - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: NutriScan-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Create GitHub Release with APK
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      - name: Create GitHub Release
+        if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
