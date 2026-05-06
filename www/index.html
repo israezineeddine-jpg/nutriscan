@@ -60,12 +60,18 @@
   .score-label { font-size: 22px; font-weight: 700; margin-top: 12px; }
   .score-text { font-size: 12px; color: var(--text-muted); margin-top: 4px; padding: 0 20px; }
   .section { background: var(--surface); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .section.bordered-danger { border-left: 4px solid var(--red); }
+  .section.bordered-warning { border-left: 4px solid var(--orange); }
+  .section.bordered-mild { border-left: 4px solid var(--yellow); }
+  .section.bordered-positive { border-left: 4px solid var(--mint); }
   .section-header { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
-  .item-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
-  .item-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .item-row { display: flex; gap: 10px; padding: 8px 0; align-items: flex-start; border-top: 1px solid var(--surface-2); }
+  .item-row:first-of-type { border-top: none; padding-top: 4px; }
+  .item-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; margin-top: 2px; }
   .item-content { flex: 1; min-width: 0; }
-  .item-title { font-size: 13px; font-weight: 500; color: white; line-height: 1.3; }
-  .item-detail { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+  .item-title { font-size: 13px; font-weight: 600; color: white; line-height: 1.3; }
+  .item-reason { font-size: 11px; margin-top: 3px; line-height: 1.4; }
+  .item-source { font-size: 10px; color: var(--text-dim); margin-top: 2px; font-style: italic; }
   .header-positive { color: var(--mint); }
   .icon-positive { background: var(--mint-soft); color: var(--mint); }
   .header-warning { color: var(--yellow); }
@@ -74,6 +80,9 @@
   .icon-negative { background: rgba(251,146,60,0.15); color: var(--orange); }
   .header-danger { color: var(--red); }
   .icon-danger { background: rgba(239,68,68,0.15); color: var(--red); }
+  .reason-danger { color: #FCA5A5; }
+  .reason-negative { color: #FED7AA; }
+  .reason-warning { color: #FDE68A; }
   .ingredients-text { font-size: 13px; line-height: 1.6; color: var(--text); background: var(--bg); padding: 12px; border-radius: 10px; border-left: 3px solid var(--mint); }
   .nutri-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .nutri-item { background: var(--bg); padding: 10px 12px; border-radius: 10px; }
@@ -83,7 +92,7 @@
   .loading { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 13px; }
   .loading::after { content: '...'; animation: dots 1.5s infinite; }
   @keyframes dots { 0%,20%{content:'.'} 40%{content:'..'} 60%,100%{content:'...'} }
-  footer { text-align: center; margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--surface); color: var(--text-dim); font-size: 11px; }
+  footer { text-align: center; margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--surface); color: var(--text-dim); font-size: 11px; line-height: 1.5; }
   footer a { color: var(--mint); text-decoration: none; }
 </style>
 </head>
@@ -94,7 +103,7 @@
       <div class="logo-icon">N</div>
       <div class="logo-text">
         <div class="logo-name">NutriScan</div>
-        <div class="logo-tag">v3 · Aliments &amp; Cosmétiques</div>
+        <div class="logo-tag">v4 · Base scientifique</div>
       </div>
     </div>
     <div class="tabs">
@@ -116,78 +125,121 @@
     </div>
   </div>
   <div id="resultArea"></div>
-  <footer>Données : <a href="https://world.openfoodfacts.org" target="_blank">Open Food Facts</a> &amp; <a href="https://world.openbeautyfacts.org" target="_blank">Open Beauty Facts</a></footer>
+  <footer>
+    Données : <a href="https://world.openfoodfacts.org" target="_blank">Open Food Facts</a> &amp; <a href="https://world.openbeautyfacts.org" target="_blank">Open Beauty Facts</a><br>
+    Évaluations basées sur CIRC/OMS, EFSA, ANSES, INSERM
+  </footer>
 </div>
 <script>
 const FOOD_ADDITIVES = {
-  'e200':{cat:'preservative',risk:1,name:'Acide sorbique'},
-  'e202':{cat:'preservative',risk:1,name:'Sorbate de potassium'},
-  'e210':{cat:'preservative',risk:3,name:'Acide benzoïque'},
-  'e211':{cat:'preservative',risk:3,name:'Benzoate de sodium'},
-  'e220':{cat:'preservative',risk:3,name:'Anhydride sulfureux'},
-  'e221':{cat:'preservative',risk:3,name:'Sulfite de sodium'},
-  'e223':{cat:'preservative',risk:3,name:'Métabisulfite de sodium'},
-  'e249':{cat:'preservative',risk:4,name:'Nitrite de potassium'},
-  'e250':{cat:'preservative',risk:4,name:'Nitrite de sodium'},
-  'e251':{cat:'preservative',risk:4,name:'Nitrate de sodium'},
-  'e252':{cat:'preservative',risk:4,name:'Nitrate de potassium'},
-  'e102':{cat:'colorant',risk:4,name:'Tartrazine'},
-  'e104':{cat:'colorant',risk:3,name:'Jaune de quinoléine'},
-  'e110':{cat:'colorant',risk:4,name:'Jaune orangé S'},
-  'e120':{cat:'colorant',risk:2,name:'Cochenille'},
-  'e122':{cat:'colorant',risk:4,name:'Azorubine'},
-  'e124':{cat:'colorant',risk:4,name:'Rouge cochenille A'},
-  'e127':{cat:'colorant',risk:3,name:'Érythrosine'},
-  'e129':{cat:'colorant',risk:4,name:'Rouge allura'},
-  'e131':{cat:'colorant',risk:3,name:'Bleu patenté V'},
-  'e133':{cat:'colorant',risk:2,name:'Bleu brillant FCF'},
-  'e150c':{cat:'colorant',risk:3,name:'Caramel ammoniacal'},
-  'e150d':{cat:'colorant',risk:3,name:'Caramel sulfite-ammoniacal'},
-  'e171':{cat:'colorant',risk:4,name:'Dioxyde de titane'},
-  'e621':{cat:'enhancer',risk:3,name:'Glutamate monosodique'},
-  'e622':{cat:'enhancer',risk:2,name:'Glutamate monopotassique'},
-  'e631':{cat:'enhancer',risk:2,name:'Inosinate disodique'},
-  'e635':{cat:'enhancer',risk:2,name:'Ribonucléotides disodiques'},
-  'e950':{cat:'sweetener',risk:3,name:'Acésulfame K'},
-  'e951':{cat:'sweetener',risk:4,name:'Aspartame'},
-  'e952':{cat:'sweetener',risk:4,name:'Cyclamate'},
-  'e954':{cat:'sweetener',risk:3,name:'Saccharine'},
-  'e955':{cat:'sweetener',risk:3,name:'Sucralose'},
-  'e960':{cat:'sweetener',risk:1,name:'Stévia'}
+  'e171':{lvl:4,name:'Dioxyde de titane',cat:'colorant',reason:'Interdit dans l\'UE depuis 2022 — génotoxicité',src:'EFSA 2021, ANSES'},
+  'e249':{lvl:4,name:'Nitrite de potassium',cat:'preservative',reason:'Cancérogène probable (groupe 2A CIRC)',src:'CIRC/OMS 2010'},
+  'e250':{lvl:4,name:'Nitrite de sodium',cat:'preservative',reason:'Lié au cancer colorectal (groupe 2A CIRC)',src:'CIRC 2010, OMS 2015'},
+  'e251':{lvl:4,name:'Nitrate de sodium',cat:'preservative',reason:'Cancérogène probable (groupe 2A CIRC)',src:'CIRC/OMS 2010'},
+  'e252':{lvl:4,name:'Nitrate de potassium',cat:'preservative',reason:'Cancérogène probable (groupe 2A CIRC)',src:'CIRC/OMS 2010'},
+  'e951':{lvl:4,name:'Aspartame',cat:'sweetener',reason:'Cancérogène possible (groupe 2B CIRC) depuis 2023',src:'CIRC/OMS juillet 2023'},
+  'e407':{lvl:4,name:'Carraghénanes',cat:'emulsifier',reason:'+32% risque cancer du sein chez forts consommateurs',src:'INSERM/INRAE 2024'},
+  'e407a':{lvl:4,name:'Algue Eucheuma transformée',cat:'emulsifier',reason:'Mêmes risques que E407',src:'INSERM 2024'},
+  'e471':{lvl:4,name:'Mono- et diglycérides d\'acides gras',cat:'emulsifier',reason:'+15% cancer global, +24% sein, +46% prostate',src:'INSERM 2024'},
+  'e102':{lvl:3,name:'Tartrazine',cat:'colorant',reason:'Hyperactivité chez l\'enfant, allergies',src:'Lancet 2007, EFSA'},
+  'e104':{lvl:3,name:'Jaune de quinoléine',cat:'colorant',reason:'Hyperactivité chez l\'enfant',src:'EFSA, mention obligatoire'},
+  'e110':{lvl:3,name:'Jaune orangé S',cat:'colorant',reason:'Hyperactivité chez l\'enfant, allergies',src:'EFSA, mention obligatoire'},
+  'e122':{lvl:3,name:'Azorubine',cat:'colorant',reason:'Hyperactivité chez l\'enfant, allergies',src:'EFSA, mention obligatoire'},
+  'e124':{lvl:3,name:'Rouge cochenille A (Ponceau 4R)',cat:'colorant',reason:'Hyperactivité chez l\'enfant',src:'EFSA, mention obligatoire'},
+  'e129':{lvl:3,name:'Rouge allura AC',cat:'colorant',reason:'Interdit en Norvège, hyperactivité enfants',src:'EFSA, mention obligatoire'},
+  'e320':{lvl:3,name:'BHA (Hydroxyanisole butylé)',cat:'antioxidant',reason:'Cancérogène possible (groupe 2B CIRC)',src:'CIRC, EFSA'},
+  'e321':{lvl:3,name:'BHT (Hydroxytoluène butylé)',cat:'antioxidant',reason:'Cancérogène possible (groupe 2B CIRC)',src:'CIRC, EFSA'},
+  'e150c':{lvl:3,name:'Caramel ammoniacal',cat:'colorant',reason:'Contient du 4-MEI (cancérogène possible 2B)',src:'CIRC'},
+  'e150d':{lvl:3,name:'Caramel sulfite-ammoniacal',cat:'colorant',reason:'Contient du 4-MEI (cancérogène possible 2B)',src:'CIRC'},
+  'e466':{lvl:3,name:'Carboxyméthyl cellulose (CMC)',cat:'emulsifier',reason:'Perturbe le microbiote, inflammation chronique',src:'INSERM'},
+  'e433':{lvl:3,name:'Polysorbate 80',cat:'emulsifier',reason:'Altère microbiote, pro-inflammatoire',src:'INRAE'},
+  'e220':{lvl:3,name:'Anhydride sulfureux',cat:'preservative',reason:'Asthme et allergies sévères chez les sensibles',src:'ANSES 2018'},
+  'e221':{lvl:3,name:'Sulfite de sodium',cat:'preservative',reason:'Asthme et allergies sévères',src:'ANSES 2018'},
+  'e222':{lvl:3,name:'Sulfite acide de sodium',cat:'preservative',reason:'Asthme et allergies sévères',src:'ANSES 2018'},
+  'e223':{lvl:3,name:'Métabisulfite de sodium',cat:'preservative',reason:'Asthme et allergies sévères',src:'ANSES 2018'},
+  'e224':{lvl:3,name:'Métabisulfite de potassium',cat:'preservative',reason:'Asthme et allergies sévères',src:'ANSES 2018'},
+  'e226':{lvl:3,name:'Sulfite de calcium',cat:'preservative',reason:'Asthme et allergies sévères',src:'ANSES 2018'},
+  'e228':{lvl:3,name:'Sulfite acide de potassium',cat:'preservative',reason:'Asthme et allergies sévères',src:'ANSES 2018'},
+  'e211':{lvl:3,name:'Benzoate de sodium',cat:'preservative',reason:'Forme du benzène (cancérogène) avec vitamine C',src:'EFSA'},
+  'e621':{lvl:3,name:'Glutamate monosodique (MSG)',cat:'enhancer',reason:'Neurotoxique à dose élevée, syndrome MSG',src:'Études cliniques'},
+  'e622':{lvl:3,name:'Glutamate monopotassique',cat:'enhancer',reason:'Effets similaires au E621',src:'EFSA'},
+  'e623':{lvl:3,name:'Glutamate de calcium',cat:'enhancer',reason:'Effets similaires au E621',src:'EFSA'},
+  'e624':{lvl:3,name:'Glutamate d\'ammonium',cat:'enhancer',reason:'Effets similaires au E621',src:'EFSA'},
+  'e625':{lvl:3,name:'Glutamate de magnésium',cat:'enhancer',reason:'Effets similaires au E621',src:'EFSA'},
+  'e131':{lvl:3,name:'Bleu patenté V',cat:'colorant',reason:'Interdit dans plusieurs pays, allergies',src:'Diverses agences'},
+  'e154':{lvl:3,name:'Brun FK',cat:'colorant',reason:'Cancérogène possible',src:'CIRC'},
+  'e173':{lvl:3,name:'Aluminium',cat:'colorant',reason:'Limiter consommation (EFSA)',src:'EFSA'},
+  'e950':{lvl:2,name:'Acésulfame K',cat:'sweetener',reason:'Édulcorant — études en cours',src:'NutriNet-Santé'},
+  'e952':{lvl:2,name:'Cyclamate',cat:'sweetener',reason:'Interdit aux USA depuis 1969',src:'FDA'},
+  'e954':{lvl:2,name:'Saccharine',cat:'sweetener',reason:'Édulcorant — études en cours',src:'NutriNet-Santé'},
+  'e955':{lvl:2,name:'Sucralose',cat:'sweetener',reason:'Édulcorant — études en cours',src:'NutriNet-Santé'},
+  'e472':{lvl:2,name:'Esters de glycérol',cat:'emulsifier',reason:'Risque cardiovasculaire suspecté',src:'Inserm'},
+  'e472a':{lvl:2,name:'Esters acétiques',cat:'emulsifier',reason:'Émulsifiant à modérer',src:'EFSA'},
+  'e472b':{lvl:2,name:'Esters lactiques',cat:'emulsifier',reason:'Émulsifiant à modérer',src:'EFSA'},
+  'e472e':{lvl:2,name:'Esters mono/diacétyl tartriques',cat:'emulsifier',reason:'Émulsifiant à modérer',src:'EFSA'},
+  'e133':{lvl:2,name:'Bleu brillant FCF',cat:'colorant',reason:'Controversé, restrictions dans certains pays',src:'EFSA'},
+  'e210':{lvl:2,name:'Acide benzoïque',cat:'preservative',reason:'Allergies, prudence',src:'EFSA'},
+  'e212':{lvl:2,name:'Benzoate de potassium',cat:'preservative',reason:'Allergies possibles',src:'EFSA'},
+  'e213':{lvl:2,name:'Benzoate de calcium',cat:'preservative',reason:'Allergies possibles',src:'EFSA'},
+  'e214':{lvl:2,name:'p-hydroxybenzoate d\'éthyle',cat:'preservative',reason:'Suspecté perturbateur endocrinien',src:'Études cliniques'},
+  'e215':{lvl:2,name:'Dérivé sodique p-hydroxybenzoate',cat:'preservative',reason:'Suspecté perturbateur endocrinien',src:'Études cliniques'},
+  'e218':{lvl:2,name:'p-hydroxybenzoate de méthyle',cat:'preservative',reason:'Suspecté perturbateur endocrinien',src:'Études cliniques'},
+  'e235':{lvl:2,name:'Natamycine',cat:'preservative',reason:'Antibiotique, prudence',src:'EFSA'},
+  'e310':{lvl:2,name:'Gallate de propyle',cat:'antioxidant',reason:'Allergies cutanées, à modérer',src:'EFSA'},
+  'e311':{lvl:2,name:'Gallate d\'octyle',cat:'antioxidant',reason:'À modérer',src:'EFSA'},
+  'e312':{lvl:2,name:'Gallate de dodécyle',cat:'antioxidant',reason:'À modérer',src:'EFSA'},
+  'e319':{lvl:2,name:'TBHQ (Tert-butylhydroquinone)',cat:'antioxidant',reason:'Toxique à dose élevée',src:'EFSA, FDA'},
+  'e631':{lvl:2,name:'Inosinate disodique',cat:'enhancer',reason:'Souvent associé au E621',src:'EFSA'},
+  'e635':{lvl:2,name:'Ribonucléotides disodiques',cat:'enhancer',reason:'Souvent associé au E621',src:'EFSA'},
+  'e410':{lvl:2,name:'Gomme caroube',cat:'emulsifier',reason:'Risque diabète accru chez forts consommateurs',src:'INSERM 2024'},
+  'e412':{lvl:2,name:'Gomme guar',cat:'emulsifier',reason:'Risque diabète accru chez forts consommateurs',src:'INSERM 2024'},
+  'e415':{lvl:2,name:'Gomme xanthane',cat:'emulsifier',reason:'Risque diabète accru chez forts consommateurs',src:'INSERM 2024'},
+  'e300':{lvl:1,name:'Acide ascorbique (Vit. C)',cat:'safe',reason:'Vitamine C — sûr',src:'EFSA'},
+  'e301':{lvl:1,name:'Ascorbate de sodium',cat:'safe',reason:'Forme de vitamine C — sûr',src:'EFSA'},
+  'e306':{lvl:1,name:'Tocophérols (Vit. E)',cat:'safe',reason:'Vitamine E naturelle — sûr',src:'EFSA'},
+  'e307':{lvl:1,name:'Alpha-tocophérol',cat:'safe',reason:'Vitamine E — sûr',src:'EFSA'},
+  'e322':{lvl:1,name:'Lécithines',cat:'safe',reason:'Émulsifiant naturel — sûr',src:'EFSA'},
+  'e330':{lvl:1,name:'Acide citrique',cat:'safe',reason:'Naturel, présent dans les agrumes — sûr',src:'EFSA'},
+  'e500':{lvl:1,name:'Bicarbonate de sodium',cat:'safe',reason:'Sûr',src:'EFSA'},
+  'e960':{lvl:1,name:'Stévia',cat:'sweetener',reason:'Édulcorant naturel, considéré sûr',src:'EFSA'},
+  'e200':{lvl:1,name:'Acide sorbique',cat:'preservative',reason:'Conservateur faible risque',src:'EFSA'},
+  'e202':{lvl:1,name:'Sorbate de potassium',cat:'preservative',reason:'Conservateur faible risque',src:'EFSA'},
+  'e270':{lvl:1,name:'Acide lactique',cat:'safe',reason:'Naturel — sûr',src:'EFSA'},
+  'e290':{lvl:1,name:'Dioxyde de carbone',cat:'safe',reason:'CO2 — sûr',src:'EFSA'}
 };
 const COSMETIC_INGREDIENTS = [
-  {pattern:/butylparaben/i, risk:4, name:'Butylparaben', cat:'endocrine'},
-  {pattern:/propylparaben/i, risk:4, name:'Propylparaben', cat:'endocrine'},
-  {pattern:/methylparaben/i, risk:3, name:'Methylparaben', cat:'endocrine'},
-  {pattern:/ethylparaben/i, risk:3, name:'Ethylparaben', cat:'endocrine'},
-  {pattern:/\bbha\b|butylated hydroxyanisole/i, risk:4, name:'BHA', cat:'endocrine'},
-  {pattern:/\bbht\b|butylated hydroxytoluene/i, risk:3, name:'BHT', cat:'endocrine'},
-  {pattern:/cyclopentasiloxane/i, risk:4, name:'Cyclopentasiloxane (D5)', cat:'endocrine'},
-  {pattern:/cyclotetrasiloxane/i, risk:4, name:'Cyclotetrasiloxane (D4)', cat:'endocrine'},
-  {pattern:/triclosan/i, risk:4, name:'Triclosan', cat:'endocrine'},
-  {pattern:/oxybenzone|benzophenone-3/i, risk:4, name:'Oxybenzone (BP-3)', cat:'endocrine'},
-  {pattern:/octinoxate|ethylhexyl methoxycinnamate/i, risk:3, name:'Octinoxate', cat:'endocrine'},
-  {pattern:/methylisothiazolinone/i, risk:4, name:'Methylisothiazolinone (MIT)', cat:'allergen'},
-  {pattern:/methylchloroisothiazolinone/i, risk:4, name:'Methylchloroisothiazolinone', cat:'allergen'},
-  {pattern:/formaldehyde/i, risk:4, name:'Formaldéhyde', cat:'allergen'},
-  {pattern:/quaternium-15/i, risk:3, name:'Quaternium-15', cat:'allergen'},
-  {pattern:/imidazolidinyl urea/i, risk:3, name:'Imidazolidinyl urea', cat:'allergen'},
-  {pattern:/sodium lauryl sulfate|\bsls\b/i, risk:2, name:'Sodium Lauryl Sulfate (SLS)', cat:'irritant'},
-  {pattern:/sodium laureth sulfate|\bsles\b/i, risk:2, name:'Sodium Laureth Sulfate (SLES)', cat:'irritant'},
-  {pattern:/cocamide dea|cocamide mea/i, risk:3, name:'Cocamide DEA', cat:'irritant'},
-  {pattern:/\bpeg-\d+/i, risk:2, name:'PEG (polyéthylène glycol)', cat:'controversial'},
-  {pattern:/mineral oil|paraffinum liquidum/i, risk:2, name:'Huile minérale', cat:'controversial'},
-  {pattern:/dimethicone/i, risk:1, name:'Dimethicone (silicone)', cat:'controversial'}
+  {pattern:/butylparaben/i, lvl:4, name:'Butylparaben', cat:'endocrine', reason:'Perturbateur endocrinien avéré', src:'ANSES'},
+  {pattern:/propylparaben/i, lvl:4, name:'Propylparaben', cat:'endocrine', reason:'Perturbateur endocrinien avéré', src:'ANSES'},
+  {pattern:/methylparaben/i, lvl:3, name:'Methylparaben', cat:'endocrine', reason:'Perturbateur endocrinien suspecté', src:'EFSA'},
+  {pattern:/ethylparaben/i, lvl:3, name:'Ethylparaben', cat:'endocrine', reason:'Perturbateur endocrinien suspecté', src:'EFSA'},
+  {pattern:/\bbha\b|butylated hydroxyanisole/i, lvl:4, name:'BHA', cat:'endocrine', reason:'Cancérogène possible (CIRC 2B)', src:'CIRC'},
+  {pattern:/\bbht\b|butylated hydroxytoluene/i, lvl:3, name:'BHT', cat:'endocrine', reason:'Cancérogène possible (CIRC 2B)', src:'CIRC'},
+  {pattern:/cyclopentasiloxane/i, lvl:4, name:'Cyclopentasiloxane (D5)', cat:'endocrine', reason:'Perturbateur endocrinien, restrictions UE', src:'ECHA'},
+  {pattern:/cyclotetrasiloxane/i, lvl:4, name:'Cyclotetrasiloxane (D4)', cat:'endocrine', reason:'Perturbateur endocrinien, toxique reproduction', src:'ECHA'},
+  {pattern:/triclosan/i, lvl:4, name:'Triclosan', cat:'endocrine', reason:'Perturbateur endocrinien, résistance bactérienne', src:'ANSES'},
+  {pattern:/oxybenzone|benzophenone-3/i, lvl:4, name:'Oxybenzone (BP-3)', cat:'endocrine', reason:'Perturbateur endocrinien, allergisant', src:'EWG'},
+  {pattern:/octinoxate|ethylhexyl methoxycinnamate/i, lvl:3, name:'Octinoxate', cat:'endocrine', reason:'Perturbateur endocrinien suspecté', src:'EWG'},
+  {pattern:/methylisothiazolinone/i, lvl:4, name:'Methylisothiazolinone (MIT)', cat:'allergen', reason:'Allergisant majeur, restrictions UE', src:'CSSC'},
+  {pattern:/methylchloroisothiazolinone/i, lvl:4, name:'Methylchloroisothiazolinone', cat:'allergen', reason:'Allergisant majeur', src:'CSSC'},
+  {pattern:/formaldehyde/i, lvl:4, name:'Formaldéhyde', cat:'allergen', reason:'Cancérogène avéré (CIRC groupe 1)', src:'CIRC'},
+  {pattern:/quaternium-15/i, lvl:3, name:'Quaternium-15', cat:'allergen', reason:'Libère du formaldéhyde', src:'CSSC'},
+  {pattern:/imidazolidinyl urea/i, lvl:3, name:'Imidazolidinyl urea', cat:'allergen', reason:'Libère du formaldéhyde', src:'CSSC'},
+  {pattern:/sodium lauryl sulfate|\bsls\b/i, lvl:2, name:'Sodium Lauryl Sulfate (SLS)', cat:'irritant', reason:'Irritant cutané et oculaire', src:'EWG'},
+  {pattern:/sodium laureth sulfate|\bsles\b/i, lvl:2, name:'Sodium Laureth Sulfate (SLES)', cat:'irritant', reason:'Irritant, peut contenir 1,4-dioxane', src:'EWG'},
+  {pattern:/cocamide dea|cocamide mea/i, lvl:3, name:'Cocamide DEA', cat:'irritant', reason:'Cancérogène possible (CIRC 2B)', src:'CIRC'},
+  {pattern:/\bpeg-\d+/i, lvl:2, name:'PEG (polyéthylène glycol)', cat:'controversial', reason:'Peut être contaminé par 1,4-dioxane', src:'EWG'},
+  {pattern:/mineral oil|paraffinum liquidum/i, lvl:2, name:'Huile minérale', cat:'controversial', reason:'Dérivé du pétrole, occlusif', src:'INCI'},
+  {pattern:/dimethicone/i, lvl:2, name:'Dimethicone (silicone)', cat:'controversial', reason:'Non biodégradable, occlusif', src:'INCI'}
 ];
 const FOOD_KEYWORDS = [
-  {pattern:/huile de palme/i, risk:3, name:'Huile de palme', cat:'oil'},
-  {pattern:/huile.*hydrog[ée]n[ée]e/i, risk:4, name:'Huile hydrogénée', cat:'oil'},
-  {pattern:/sirop de glucose-fructose/i, risk:3, name:'Sirop de glucose-fructose', cat:'sugar'},
-  {pattern:/sirop de glucose/i, risk:2, name:'Sirop de glucose', cat:'sugar'},
-  {pattern:/sirop de fructose/i, risk:2, name:'Sirop de fructose', cat:'sugar'}
+  {pattern:/huile de palme/i, lvl:3, name:'Huile de palme', cat:'oil', reason:'Riche en graisses saturées + déforestation', src:'OMS'},
+  {pattern:/huile.*hydrog[ée]n[ée]e/i, lvl:4, name:'Huile hydrogénée', cat:'oil', reason:'Acides gras trans — risque cardiovasculaire', src:'OMS'},
+  {pattern:/sirop de glucose-fructose/i, lvl:3, name:'Sirop de glucose-fructose', cat:'sugar', reason:'Lié à l\'obésité et au diabète', src:'OMS'},
+  {pattern:/sirop de glucose/i, lvl:2, name:'Sirop de glucose', cat:'sugar', reason:'Sucre raffiné ajouté', src:'OMS'},
+  {pattern:/sirop de fructose/i, lvl:2, name:'Sirop de fructose', cat:'sugar', reason:'Sucre raffiné ajouté', src:'OMS'}
 ];
 function analyzeFoodProduct(p) {
-  const positives = [], negatives = [];
+  const positives = [], dangers = [], negatives = [], warnings = [];
   let score = 100;
   const detected = [];
   const tags = p.additives_tags || [];
@@ -195,103 +247,103 @@ function analyzeFoodProduct(p) {
     const code = t.replace('en:','').toLowerCase();
     if (FOOD_ADDITIVES[code]) {
       const a = FOOD_ADDITIVES[code];
-      detected.push({code:code.toUpperCase(), name:a.name, risk:a.risk, cat:a.cat});
+      detected.push({code:code.toUpperCase(), ...a});
     }
   });
   const text = (p.ingredients_text_fr || p.ingredients_text || '').toLowerCase();
   FOOD_KEYWORDS.forEach(k => {
-    if (k.pattern.test(text)) detected.push({code:'•', name:k.name, risk:k.risk, cat:k.cat});
+    if (k.pattern.test(text) && !detected.find(d => d.name === k.name)) {
+      detected.push({code:'•', ...k});
+    }
   });
   detected.forEach(d => {
-    if (d.risk === 4) score -= 15;
-    else if (d.risk === 3) score -= 10;
-    else if (d.risk === 2) score -= 5;
-    else score -= 2;
+    if (d.lvl === 4) score -= 20;
+    else if (d.lvl === 3) score -= 12;
+    else if (d.lvl === 2) score -= 5;
   });
+  detected.forEach(d => {
+    const item = {title: d.code !== '•' ? `${d.code} — ${d.name}` : d.name, reason: d.reason, source: d.src};
+    if (d.lvl === 4) dangers.push(item);
+    else if (d.lvl === 3) negatives.push(item);
+    else if (d.lvl === 2) warnings.push(item);
+    else if (d.lvl === 1 && d.cat !== 'safe') {
+      positives.push({title: `${d.code} — ${d.name}`, detail: d.reason});
+    }
+  });
+  const n = p.nutriments || {};
+  const sugars = n.sugars_100g;
+  if (sugars != null) {
+    if (sugars >= 50) { score -= 50; dangers.push({title:`Bombe sucrière — ${sugars}g/100g`, reason:'Plus de 50% de sucre — risque obésité, diabète, caries', source:'OMS'}); }
+    else if (sugars >= 25) { score -= 30; negatives.push({title:`Très sucré — ${sugars}g/100g`, reason:'Plus de 25g de sucre par 100g', source:'OMS'}); }
+    else if (sugars >= 15) { score -= 15; negatives.push({title:`Sucré — ${sugars}g/100g`, reason:'Au-delà du seuil recommandé', source:'OMS'}); }
+    else if (sugars >= 5) { score -= 5; warnings.push({title:`Modérément sucré — ${sugars}g/100g`, reason:'Consommation modérée recommandée', source:'OMS'}); }
+  }
+  const salt = n.salt_100g;
+  if (salt != null) {
+    if (salt >= 1.5) { score -= 15; negatives.push({title:`Trop salé — ${salt}g/100g`, reason:'Risque cardiovasculaire, hypertension', source:'OMS'}); }
+    else if (salt >= 0.6) { score -= 5; warnings.push({title:`Modérément salé — ${salt}g/100g`, reason:'À surveiller', source:'OMS'}); }
+  }
+  const satfat = n['saturated-fat_100g'];
+  if (satfat != null) {
+    if (satfat >= 10) { score -= 12; negatives.push({title:`Riche en graisses saturées — ${satfat}g/100g`, reason:'Risque cardiovasculaire', source:'OMS'}); }
+    else if (satfat >= 5) { score -= 5; warnings.push({title:`Graisses saturées notables — ${satfat}g/100g`, reason:'À modérer', source:'OMS'}); }
+  }
+  const kcal = n['energy-kcal_100g'];
+  if (kcal != null && kcal >= 500) { score -= 8; warnings.push({title:`Calories élevées — ${Math.round(kcal)} kcal/100g`, reason:'Densité calorique importante', source:'OMS'}); }
+  const ingList = text.split(/[,;()]/).map(s => s.trim()).filter(s => s);
+  const top3 = ingList.slice(0, 3).join(' | ');
+  if (/^sucre|^\s*sucre|sucre\s*$|\bsucre,|\bsucre\b/i.test(top3)) {
+    if (!negatives.find(it => it.title.toLowerCase().includes('sucr')) && !dangers.find(it => it.title.toLowerCase().includes('sucr'))) {
+      score -= 10;
+      negatives.push({title:'Sucre dans les 3 premiers ingrédients', reason:'Le sucre est un composant principal du produit', source:'Analyse étiquette'});
+    }
+  }
   const ns = p.nutriscore_grade;
   if (ns === 'a') score += 10;
   else if (ns === 'b') score += 5;
-  else if (ns === 'd') score -= 8;
-  else if (ns === 'e') score -= 15;
-  if (detected.length === 0) positives.push({title:'Aucun additif détecté', detail:'Liste d\'ingrédients propre'});
+  else if (ns === 'd') score -= 10;
+  else if (ns === 'e') score -= 20;
+  if (detected.filter(d => d.lvl >= 2).length === 0) positives.unshift({title:'Aucun additif problématique', detail:'Liste d\'ingrédients propre'});
   if (ns === 'a' || ns === 'b') positives.push({title:`Nutri-Score ${ns.toUpperCase()}`, detail:'Bonne qualité nutritionnelle'});
   const nova = p.nova_group;
   if (nova && nova <= 2) positives.push({title:'Peu transformé', detail:`NOVA groupe ${nova}`});
-  const sugars = p.nutriments?.sugars_100g;
-  if (sugars != null && sugars < 5) positives.push({title:'Peu de sucres', detail:`${sugars} g / 100g`});
-  const salt = p.nutriments?.salt_100g;
-  if (salt != null && salt < 0.3) positives.push({title:'Peu de sel', detail:`${salt} g / 100g`});
-  const fiber = p.nutriments?.fiber_100g;
-  if (fiber != null && fiber > 6) positives.push({title:'Riche en fibres', detail:`${fiber} g / 100g`});
-  const proteins = p.nutriments?.proteins_100g;
-  if (proteins != null && proteins > 12) positives.push({title:'Riche en protéines', detail:`${proteins} g / 100g`});
-  const byCategory = {};
-  detected.forEach(d => { if (!byCategory[d.cat]) byCategory[d.cat] = []; byCategory[d.cat].push(d); });
-  const catLabels = {
-    preservative: {sing:'Conservateur', plur:'Conservateurs'},
-    colorant: {sing:'Colorant', plur:'Colorants'},
-    enhancer: {sing:'Exhausteur de goût', plur:'Exhausteurs de goût'},
-    sweetener: {sing:'Édulcorant', plur:'Édulcorants'},
-    sugar: {sing:'Sucre ajouté', plur:'Sucres ajoutés'},
-    oil: {sing:'Huile à risque', plur:'Huiles à risque'}
-  };
-  Object.keys(byCategory).forEach(cat => {
-    const items = byCategory[cat];
-    const maxRisk = Math.max(...items.map(i => i.risk));
-    const label = items.length > 1 ? catLabels[cat]?.plur : catLabels[cat]?.sing;
-    const detail = items.map(i => i.code !== '•' ? `${i.code} ${i.name}` : i.name).join(', ');
-    negatives.push({title:`${label}${items.length > 1 ? ' ('+items.length+')' : ''}`, detail, risk:maxRisk});
-  });
-  const kcal = p.nutriments?.['energy-kcal_100g'];
-  if (kcal != null && kcal > 500) negatives.push({title:'Calories élevées', detail:`${Math.round(kcal)} kcal / 100g`, risk:2});
-  if (salt != null && salt > 1.5) negatives.push({title:'Trop salé', detail:`${salt} g / 100g`, risk:3});
-  if (sugars != null && sugars > 22.5) negatives.push({title:'Trop sucré', detail:`${sugars} g / 100g`, risk:3});
+  if (sugars != null && sugars < 5) positives.push({title:'Peu de sucres', detail:`${sugars}g/100g`});
+  if (salt != null && salt < 0.3) positives.push({title:'Peu de sel', detail:`${salt}g/100g`});
+  const fiber = n.fiber_100g;
+  if (fiber != null && fiber > 6) positives.push({title:'Riche en fibres', detail:`${fiber}g/100g`});
+  const proteins = n.proteins_100g;
+  if (proteins != null && proteins > 12) positives.push({title:'Riche en protéines', detail:`${proteins}g/100g`});
   const allergens = (p.allergens_tags || []).map(a => a.replace('en:','').replace(/-/g,' '));
-  if (allergens.length > 0) negatives.push({title:`Allergènes (${allergens.length})`, detail:allergens.join(', '), risk:2});
+  if (allergens.length > 0) warnings.push({title:`Allergènes (${allergens.length})`, reason:allergens.join(', '), source:'Étiquetage'});
   score = Math.max(0, Math.min(100, score));
-  return {score, positives, negatives};
+  return {score, positives, dangers, negatives, warnings};
 }
 function analyzeCosmeticProduct(p) {
-  const positives = [], negatives = [];
+  const positives = [], dangers = [], negatives = [], warnings = [];
   let score = 100;
   const text = (p.ingredients_text_fr || p.ingredients_text || '').toLowerCase();
   const detected = [];
   COSMETIC_INGREDIENTS.forEach(ing => { if (ing.pattern.test(text)) detected.push(ing); });
   detected.forEach(d => {
-    if (d.risk === 4) score -= 18;
-    else if (d.risk === 3) score -= 12;
-    else if (d.risk === 2) score -= 6;
-    else score -= 2;
+    if (d.lvl === 4) score -= 20;
+    else if (d.lvl === 3) score -= 12;
+    else if (d.lvl === 2) score -= 5;
+  });
+  detected.forEach(d => {
+    const item = {title: d.name, reason: d.reason, source: d.src};
+    if (d.lvl === 4) dangers.push(item);
+    else if (d.lvl === 3) negatives.push(item);
+    else if (d.lvl === 2) warnings.push(item);
   });
   if (detected.length === 0) positives.push({title:'Composition saine', detail:'Aucun ingrédient à risque détecté'});
-  const byCat = {};
-  detected.forEach(d => { if (!byCat[d.cat]) byCat[d.cat] = []; byCat[d.cat].push(d); });
-  const cosmCatLabels = {
-    endocrine: 'Perturbateurs endocriniens',
-    allergen: 'Allergènes',
-    irritant: 'Ingrédients irritants',
-    controversial: 'Ingrédients controversés'
-  };
-  Object.keys(byCat).forEach(cat => {
-    const items = byCat[cat];
-    const maxRisk = Math.max(...items.map(i => i.risk));
-    const detail = items.map(i => i.name).join(', ');
-    negatives.push({ title: `${cosmCatLabels[cat]} (${items.length})`, detail, risk:maxRisk });
-  });
   score = Math.max(0, Math.min(100, score));
-  return {score, positives, negatives};
+  return {score, positives, dangers, negatives, warnings};
 }
 function getScoreInfo(score) {
   if (score >= 75) return {color:'var(--mint)', glow:'#2DD4BF', label:'Excellent', text:'Produit de qualité, peu de défauts'};
   if (score >= 50) return {color:'var(--yellow)', glow:'#FBBF24', label:'Bon', text:'Quelques points à surveiller'};
   if (score >= 25) return {color:'var(--orange)', glow:'#FB923C', label:'Médiocre', text:'Plusieurs ingrédients problématiques'};
   return {color:'var(--red)', glow:'#EF4444', label:'Mauvais', text:'À éviter ou consommer rarement'};
-}
-function riskClass(risk) {
-  if (risk >= 4) return {icon:'icon-danger', symbol:'!'};
-  if (risk >= 3) return {icon:'icon-negative', symbol:'!'};
-  if (risk >= 2) return {icon:'icon-warning', symbol:'!'};
-  return {icon:'icon-warning', symbol:'·'};
 }
 let currentMode = 'food';
 const html5QrCode = new Html5Qrcode("reader");
@@ -307,49 +359,26 @@ tabFood.addEventListener('click', () => switchMode('food'));
 tabCosm.addEventListener('click', () => switchMode('cosmetic'));
 function switchMode(mode) {
   currentMode = mode;
-  if (mode === 'food') {
-    tabFood.classList.add('active');
-    tabCosm.classList.remove('active');
-    manualInput.placeholder = 'Saisir un code-barres alimentaire';
-  } else {
-    tabCosm.classList.add('active');
-    tabFood.classList.remove('active');
-    manualInput.placeholder = 'Saisir un code-barres cosmétique';
-  }
+  if (mode === 'food') { tabFood.classList.add('active'); tabCosm.classList.remove('active'); manualInput.placeholder = 'Saisir un code-barres alimentaire'; }
+  else { tabCosm.classList.add('active'); tabFood.classList.remove('active'); manualInput.placeholder = 'Saisir un code-barres cosmétique'; }
   resultArea.innerHTML = '';
 }
 startBtn.addEventListener('click', async () => {
   if (isScanning) return;
   try {
-    await html5QrCode.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 280, height: 140 },
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.CODE_128
-        ]
-      },
-      onScanSuccess, () => {}
-    );
-    isScanning = true;
-    startBtn.textContent = '🔍 Scan en cours...';
+    await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 280, height: 140 }, formatsToSupport: [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E, Html5QrcodeSupportedFormats.CODE_128] }, onScanSuccess, () => {});
+    isScanning = true; startBtn.textContent = '🔍 Scan en cours...';
   } catch (err) { showError("Impossible d'accéder à la caméra : " + err.message); }
 });
 stopBtn.addEventListener('click', async () => {
   if (!isScanning) return;
-  try { await html5QrCode.stop(); isScanning = false; startBtn.textContent = '📷 Démarrer le scan'; }
-  catch (err) { console.error(err); }
+  try { await html5QrCode.stop(); isScanning = false; startBtn.textContent = '📷 Démarrer le scan'; } catch (err) { console.error(err); }
 });
-searchBtn.addEventListener('click', () => {
-  const code = manualInput.value.trim();
-  if (code) fetchProduct(code);
-});
+searchBtn.addEventListener('click', () => { const code = manualInput.value.trim(); if (code) fetchProduct(code); });
 manualInput.addEventListener('keypress', e => { if (e.key === 'Enter') searchBtn.click(); });
 async function onScanSuccess(decodedText) {
   if (isScanning) {
-    try { await html5QrCode.stop(); isScanning = false; startBtn.textContent = '📷 Démarrer le scan'; }
-    catch (e) { console.error(e); }
+    try { await html5QrCode.stop(); isScanning = false; startBtn.textContent = '📷 Démarrer le scan'; } catch (e) { console.error(e); }
   }
   fetchProduct(decodedText);
 }
@@ -365,11 +394,13 @@ async function fetchProduct(barcode) {
       const fbData = await fbResp.json();
       if (fbData.status === 0 || !fbData.product) { showError(`Produit non trouvé : ${barcode}`); return; }
       switchMode(currentMode === 'food' ? 'cosmetic' : 'food');
-      displayProduct(fbData.product, barcode);
-      return;
+      displayProduct(fbData.product, barcode); return;
     }
     displayProduct(data.product, barcode);
   } catch (err) { showError("Erreur réseau : " + err.message); }
+}
+function renderItem(item, iconClass, reasonClass) {
+  return `<div class="item-row"><div class="item-icon ${iconClass}">!</div><div class="item-content"><div class="item-title">${escapeHtml(item.title)}</div>${item.reason ? `<div class="item-reason ${reasonClass||''}">${escapeHtml(item.reason)}</div>` : ''}${item.source ? `<div class="item-source">Source : ${escapeHtml(item.source)}</div>` : ''}</div></div>`;
 }
 function displayProduct(p, barcode) {
   const name = p.product_name_fr || p.product_name || 'Produit sans nom';
@@ -380,26 +411,16 @@ function displayProduct(p, barcode) {
   let html = '<div class="result-wrapper">';
   html += `<div class="product-card">${image ? `<img class="product-img" src="${image}" alt="">` : `<div class="product-img-placeholder">${currentMode === 'food' ? '🍽️' : '🧴'}</div>`}<div class="product-info"><div class="product-name">${escapeHtml(name)}</div><div class="product-brand">${escapeHtml(brand)}</div><div class="product-barcode">CODE: ${barcode}</div></div></div>`;
   html += `<div class="section"><div class="score-section"><div class="score-circle-wrap"><div class="score-glow" style="background: ${sInfo.glow};"></div><div class="score-circle" style="background: ${sInfo.color};"><div class="score-value">${analysis.score}</div><div class="score-max">/100</div></div></div><div class="score-label" style="color: ${sInfo.color};">${sInfo.label}</div><div class="score-text">${sInfo.text}</div></div></div>`;
+  if (analysis.dangers.length > 0) { html += `<div class="section bordered-danger"><div class="section-header header-danger">⚠️ Danger majeur</div>`; analysis.dangers.forEach(it => { html += renderItem(it, 'icon-danger', 'reason-danger'); }); html += `</div>`; }
+  if (analysis.negatives.length > 0) { html += `<div class="section bordered-warning"><div class="section-header header-negative">! Risque élevé</div>`; analysis.negatives.forEach(it => { html += renderItem(it, 'icon-negative', 'reason-negative'); }); html += `</div>`; }
+  if (analysis.warnings.length > 0) { html += `<div class="section bordered-mild"><div class="section-header header-warning">· À modérer</div>`; analysis.warnings.forEach(it => { html += renderItem(it, 'icon-warning', 'reason-warning'); }); html += `</div>`; }
   if (analysis.positives.length > 0) {
-    html += `<div class="section"><div class="section-header header-positive">✓ Points positifs</div>`;
-    analysis.positives.forEach(item => {
-      html += `<div class="item-row"><div class="item-icon icon-positive">✓</div><div class="item-content"><div class="item-title">${escapeHtml(item.title)}</div>${item.detail ? `<div class="item-detail">${escapeHtml(item.detail)}</div>` : ''}</div></div>`;
-    });
-    html += `</div>`;
-  }
-  if (analysis.negatives.length > 0) {
-    analysis.negatives.sort((a,b) => (b.risk||0) - (a.risk||0));
-    html += `<div class="section"><div class="section-header header-negative">! Points à surveiller</div>`;
-    analysis.negatives.forEach(item => {
-      const r = riskClass(item.risk || 2);
-      html += `<div class="item-row"><div class="item-icon ${r.icon}">${r.symbol}</div><div class="item-content"><div class="item-title">${escapeHtml(item.title)}</div>${item.detail ? `<div class="item-detail">${escapeHtml(item.detail)}</div>` : ''}</div></div>`;
-    });
+    html += `<div class="section bordered-positive"><div class="section-header header-positive">✓ Points positifs</div>`;
+    analysis.positives.forEach(it => { html += `<div class="item-row"><div class="item-icon icon-positive">✓</div><div class="item-content"><div class="item-title">${escapeHtml(it.title)}</div>${it.detail ? `<div class="item-reason" style="color: var(--mint);">${escapeHtml(it.detail)}</div>` : ''}</div></div>`; });
     html += `</div>`;
   }
   const ingredients = p.ingredients_text_fr || p.ingredients_text;
-  if (ingredients) {
-    html += `<div class="section"><div class="section-header header-positive">Liste complète</div><div class="ingredients-text">${escapeHtml(ingredients)}</div></div>`;
-  }
+  if (ingredients) html += `<div class="section"><div class="section-header header-positive">Liste complète</div><div class="ingredients-text">${escapeHtml(ingredients)}</div></div>`;
   if (currentMode === 'food') {
     const n = p.nutriments || {};
     const nutriItems = [
@@ -410,18 +431,13 @@ function displayProduct(p, barcode) {
       { label: 'Protéines', value: n.proteins_100g != null ? `${n.proteins_100g} g` : null },
       { label: 'Sel', value: n.salt_100g != null ? `${n.salt_100g} g` : null }
     ].filter(x => x.value);
-    if (nutriItems.length > 0) {
-      html += `<div class="section"><div class="section-header header-positive">Pour 100g</div><div class="nutri-grid">${nutriItems.map(it => `<div class="nutri-item"><div class="nutri-label">${it.label}</div><div class="nutri-value">${it.value}</div></div>`).join('')}</div></div>`;
-    }
+    if (nutriItems.length > 0) html += `<div class="section"><div class="section-header header-positive">Pour 100g</div><div class="nutri-grid">${nutriItems.map(it => `<div class="nutri-item"><div class="nutri-label">${it.label}</div><div class="nutri-value">${it.value}</div></div>`).join('')}</div></div>`;
   }
   html += '</div>';
   resultArea.innerHTML = html;
 }
 function showError(msg) { resultArea.innerHTML = `<div class="error-box">${escapeHtml(msg)}</div>`; }
-function escapeHtml(str) {
-  if (str == null) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-}
+function escapeHtml(str) { if (str == null) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 </script>
 </body>
 </html>
