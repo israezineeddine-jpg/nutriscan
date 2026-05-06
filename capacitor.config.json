@@ -1,0 +1,13 @@
+{
+  "appId": "com.zineeddine.nutriscan",
+  "appName": "NutriScan",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}
