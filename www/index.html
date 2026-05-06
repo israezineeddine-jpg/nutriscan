@@ -15,3 +15,223 @@
     --bg-soft: #131b16;
     --card: #1a2520;
     --line: #2a3832;
+    --text: #e8efe9;
+    --muted: #8a9a92;
+    --accent: #b8e986;
+    --accent-warm: #f0c674;
+    --danger: #e87a6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Fraunces', Georgia, serif;
+    min-height: 100vh; overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(184,233,134,0.08) 0%, transparent 40%),
+      radial-gradient(circle at 80% 100%, rgba(240,198,116,0.06) 0%, transparent 50%);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 24px 18px 80px; }
+  header { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .logo-row { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+  .logo {
+    font-size: 36px; font-weight: 800; letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-warm) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .logo-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.15em; }
+  .tagline { font-size: 15px; color: var(--muted); font-style: italic; }
+  .scanner-card { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 16px; }
+  #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; min-height: 260px; display: flex; align-items: center; justify-content: center; }
+  #reader video { border-radius: 12px; }
+  .placeholder { color: var(--muted); text-align: center; padding: 40px 20px; font-style: italic; font-size: 14px; }
+  .button-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  button { flex: 1; min-width: 110px; padding: 14px 14px; border: none; border-radius: 10px; font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: transform 0.15s ease; }
+  button:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #0d1410; }
+  .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  .manual-input { display: flex; gap: 8px; margin-top: 12px; }
+  input[type="text"] { flex: 1; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+  input[type="text"]:focus { outline: none; border-color: var(--accent); }
+  .result-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; margin-top: 16px; animation: fadeUp 0.4s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .product-header { display: flex; gap: 14px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+  .product-img { width: 80px; height: 80px; border-radius: 12px; object-fit: cover; background: var(--bg); flex-shrink: 0; }
+  .product-meta { flex: 1; min-width: 0; }
+  .product-name { font-size: 20px; font-weight: 600; line-height: 1.2; margin-bottom: 4px; }
+  .product-brand { color: var(--muted); font-size: 13px; font-style: italic; }
+  .barcode { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 6px; letter-spacing: 0.05em; }
+  .section-title { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--accent); margin-bottom: 10px; margin-top: 18px; }
+  .ingredients-text { font-size: 14px; line-height: 1.65; color: var(--text); background: var(--bg); padding: 14px; border-radius: 10px; border-left: 3px solid var(--accent); }
+  .nutri-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+  .nutri-item { background: var(--bg); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); }
+  .nutri-label { font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace; }
+  .nutri-value { font-size: 16px; font-weight: 600; margin-top: 2px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--line); }
+  .badge.allergen { background: rgba(232,122,107,0.12); color: var(--danger); border-color: rgba(232,122,107,0.3); }
+  .badge.additive { background: rgba(240,198,116,0.12); color: var(--accent-warm); border-color: rgba(240,198,116,0.3); }
+  .nutriscore { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px; border-radius: 50%; font-size: 26px; font-weight: 800; color: white; text-transform: uppercase; }
+  .ns-a { background: #038141; } .ns-b { background: #85bb2f; } .ns-c { background: #fecb02; color: #333; } .ns-d { background: #ee8100; } .ns-e { background: #e63e11; }
+  .error-box { background: rgba(232,122,107,0.1); border: 1px solid rgba(232,122,107,0.3); color: var(--danger); padding: 14px; border-radius: 10px; font-size: 13px; }
+  .loading { text-align: center; padding: 30px 20px; color: var(--muted); font-style: italic; }
+  .loading::after { content: '...'; animation: dots 1.5s infinite; }
+  @keyframes dots { 0%,20%{content:'.'} 40%{content:'..'} 60%,100%{content:'...'} }
+  footer { text-align: center; margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo-row">
+      <div class="logo">NutriScan</div>
+      <div class="logo-tag">v1.0</div>
+    </div>
+    <p class="tagline">Scannez un code-barres pour découvrir les ingrédients.</p>
+  </header>
+  <div class="scanner-card">
+    <div id="reader">
+      <div class="placeholder">Appuyez sur « Démarrer le scan » pour activer la caméra</div>
+    </div>
+    <div class="button-row">
+      <button class="btn-primary" id="startBtn">📷 Démarrer le scan</button>
+      <button class="btn-secondary" id="stopBtn">⏸ Arrêter</button>
+    </div>
+    <div class="manual-input">
+      <input type="text" id="manualBarcode" inputmode="numeric" placeholder="Code-barres (ex: 3017620422003)" />
+      <button class="btn-secondary" id="searchBtn" style="flex: 0 0 auto;">OK</button>
+    </div>
+  </div>
+  <div id="resultArea"></div>
+  <footer>Données : <a href="https://world.openfoodfacts.org" target="_blank">Open Food Facts</a></footer>
+</div>
+<script>
+  const html5QrCode = new Html5Qrcode("reader");
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const searchBtn = document.getElementById('searchBtn');
+  const manualInput = document.getElementById('manualBarcode');
+  const resultArea = document.getElementById('resultArea');
+  let isScanning = false;
+
+  startBtn.addEventListener('click', async () => {
+    if (isScanning) return;
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 280, height: 140 },
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_128
+          ]
+        },
+        onScanSuccess, () => {}
+      );
+      isScanning = true;
+      startBtn.textContent = '🔍 Scan en cours...';
+    } catch (err) { showError("Impossible d'accéder à la caméra : " + err.message); }
+  });
+
+  stopBtn.addEventListener('click', async () => {
+    if (!isScanning) return;
+    try { await html5QrCode.stop(); isScanning = false; startBtn.textContent = '📷 Démarrer le scan'; }
+    catch (err) { console.error(err); }
+  });
+
+  searchBtn.addEventListener('click', () => {
+    const code = manualInput.value.trim();
+    if (code) fetchProduct(code);
+  });
+  manualInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') searchBtn.click(); });
+
+  async function onScanSuccess(decodedText) {
+    if (isScanning) {
+      try { await html5QrCode.stop(); isScanning = false; startBtn.textContent = '📷 Démarrer le scan'; }
+      catch (e) { console.error(e); }
+    }
+    fetchProduct(decodedText);
+  }
+
+  async function fetchProduct(barcode) {
+    resultArea.innerHTML = '<div class="result-card"><div class="loading">Recherche du produit</div></div>';
+    try {
+      const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json`);
+      const data = await response.json();
+      if (data.status === 0 || !data.product) {
+        showError(`Produit non trouvé pour le code-barres : ${barcode}.`);
+        return;
+      }
+      displayProduct(data.product, barcode);
+    } catch (err) { showError("Erreur réseau : " + err.message); }
+  }
+
+  function displayProduct(p, barcode) {
+    const name = p.product_name_fr || p.product_name || 'Produit sans nom';
+    const brand = p.brands || 'Marque inconnue';
+    const image = p.image_front_url || p.image_url || '';
+    const ingredients = p.ingredients_text_fr || p.ingredients_text || 'Liste d\'ingrédients non renseignée';
+    const allergens = (p.allergens_tags || []).map(a => a.replace('en:', '').replace(/-/g, ' '));
+    const additives = (p.additives_tags || []).map(a => a.replace('en:', '').toUpperCase());
+    const nutriscore = p.nutriscore_grade;
+    const novaGroup = p.nova_group;
+    const n = p.nutriments || {};
+    const nutriItems = [
+      { label: 'Énergie', value: n['energy-kcal_100g'] ? `${Math.round(n['energy-kcal_100g'])} kcal` : null },
+      { label: 'Matières grasses', value: n.fat_100g != null ? `${n.fat_100g} g` : null },
+      { label: 'AG saturés', value: n['saturated-fat_100g'] != null ? `${n['saturated-fat_100g']} g` : null },
+      { label: 'Glucides', value: n.carbohydrates_100g != null ? `${n.carbohydrates_100g} g` : null },
+      { label: 'Sucres', value: n.sugars_100g != null ? `${n.sugars_100g} g` : null },
+      { label: 'Protéines', value: n.proteins_100g != null ? `${n.proteins_100g} g` : null },
+      { label: 'Sel', value: n.salt_100g != null ? `${n.salt_100g} g` : null },
+      { label: 'Fibres', value: n.fiber_100g != null ? `${n.fiber_100g} g` : null }
+    ].filter(x => x.value);
+
+    let html = `
+      <div class="result-card">
+        <div class="product-header">
+          ${image ? `<img class="product-img" src="${image}" alt="">` : '<div class="product-img"></div>'}
+          <div class="product-meta">
+            <div class="product-name">${escapeHtml(name)}</div>
+            <div class="product-brand">${escapeHtml(brand)}</div>
+            <div class="barcode">CODE: ${barcode}</div>
+            ${nutriscore ? `<div style="margin-top:8px;"><span class="nutriscore ns-${nutriscore}">${nutriscore}</span></div>` : ''}
+          </div>
+        </div>
+        <div class="section-title">🌿 Ingrédients / Matières</div>
+        <div class="ingredients-text">${escapeHtml(ingredients)}</div>`;
+    if (allergens.length) {
+      html += `<div class="section-title">⚠️ Allergènes</div><div class="badges">
+        ${allergens.map(a => `<span class="badge allergen">${escapeHtml(a)}</span>`).join('')}</div>`;
+    }
+    if (additives.length) {
+      html += `<div class="section-title">🧪 Additifs (${additives.length})</div><div class="badges">
+        ${additives.map(a => `<span class="badge additive">${escapeHtml(a)}</span>`).join('')}</div>`;
+    }
+    if (nutriItems.length) {
+      html += `<div class="section-title">📊 Pour 100g</div><div class="nutri-grid">
+        ${nutriItems.map(item => `<div class="nutri-item"><div class="nutri-label">${item.label}</div><div class="nutri-value">${item.value}</div></div>`).join('')}</div>`;
+    }
+    if (novaGroup) {
+      const novaDesc = {1:'Aliments non transformés',2:'Ingrédients culinaires transformés',3:'Aliments transformés',4:'Aliments ultra-transformés'};
+      html += `<div class="section-title">🏭 NOVA</div><div class="ingredients-text">Groupe ${novaGroup} — ${novaDesc[novaGroup]||''}</div>`;
+    }
+    html += `</div>`;
+    resultArea.innerHTML = html;
+  }
+
+  function showError(msg) {
+    resultArea.innerHTML = `<div class="result-card"><div class="error-box">${escapeHtml(msg)}</div></div>`;
+  }
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+</script>
+</body>
+</html>
