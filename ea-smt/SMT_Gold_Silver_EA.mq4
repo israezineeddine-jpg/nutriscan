@@ -31,6 +31,7 @@ input double InpPointSize      = 0.0;      // Point size — 0 = symbol point
 input string InpSectionEntry   = "===== Entry / exit ====="; // -----
 input ENUM_SMT_ENTRY_MODE InpEntryMode = ENTRY_STOP_ORDER; // Entry mode
 input double InpRiskReward     = 1.0;      // Take profit in R (indicator = 1.0)
+input bool   InpLateMarketEntry = false;    // Enter at market when price is already past the level
 
 input string InpSectionRisk    = "===== Risk (prop firm) ====="; // -----
 input double InpRiskPercent       = 0.5;   // Risk per trade, % of initial balance
@@ -46,6 +47,8 @@ input double InpMaxSpread          = 0.60;  // Max spread in price (0.60 = 60 ce
 input bool   InpUseSessionFilter  = true;  // Block trading during rollover hours
 input int    InpNoTradeStartHour  = 23;    // No-trade start hour (server time)
 input int    InpNoTradeEndHour    = 1;     // No-trade end hour (server time)
+input bool   InpCloseBeforeWeekend = true; // Close trades and stop on Friday evening
+input int    InpFridayCloseHour   = 20;    // Friday close hour (server time)
 input string InpNewsTimes         = "";    // News times, server time "yyyy.mm.dd hh:mi;..."
 input int    InpNewsMinutesBefore = 5;     // Minutes before news
 input int    InpNewsMinutesAfter  = 5;     // Minutes after news
@@ -115,6 +118,8 @@ string   g_lastBlock     = "";
 int      g_objCount      = 0;
 
 //================= HELPERS =================
+
+bool WeekendBlocked(); // defined with the filters below
 
 // Global variables keep state across restarts on a live account only:
 // in the tester they would leak between runs (e.g. an old deposit).
@@ -380,6 +385,12 @@ void CheckGuards()
       LogLine("MAX LOSS GUARD: equity " + DoubleToString(equity, 2) + " — EA stopped permanently");
      }
 
+   if(WeekendBlocked() && CountPositions() > 0)
+     {
+      CloseAllPositions();
+      LogLine("WEEKEND: positions closed before the weekend");
+     }
+
    if(!g_dailyHalt && g_dayStartBalance - equity >= DailyLossLimitMoney())
      {
       g_dailyHalt = true;
@@ -390,6 +401,15 @@ void CheckGuards()
   }
 
 //================= FILTERS =================
+
+// Friday evening until the Monday open (server time).
+bool WeekendBlocked()
+  {
+   if(!InpCloseBeforeWeekend)
+      return false;
+   int dow = TimeDayOfWeek(TimeCurrent());
+   return (dow == 6 || dow == 0 || (dow == 5 && TimeHour(TimeCurrent()) >= InpFridayCloseHour));
+  }
 
 bool SessionBlocked()
   {
@@ -446,7 +466,7 @@ bool SpreadTooWide()
 // Conditions that must hold for any order to exist (pending or new).
 bool TradingWindowOpen()
   {
-   return (!g_totalHalt && !g_dailyHalt && !SessionBlocked() && !NewsBlocked());
+   return (!g_totalHalt && !g_dailyHalt && !WeekendBlocked() && !SessionBlocked() && !NewsBlocked());
   }
 
 //================= ORDERS =================
@@ -504,6 +524,8 @@ string BlockReason()
       return "max loss guard";
    if(g_dailyHalt)
       return "daily loss guard";
+   if(WeekendBlocked())
+      return "weekend";
    if(SessionBlocked())
       return "rollover hours";
    if(NewsBlocked())
@@ -615,8 +637,19 @@ void PlaceStopOrder(TradeSetup &tr)
    bool beyond = tr.direction > 0 ? Ask >= entry : Bid <= entry;
    if(beyond)
      {
-      if(OpenMarket(tr))
+      if(InpLateMarketEntry)
+        {
+         if(OpenMarket(tr))
+            tr.traded = true;
+        }
+      else
+        {
+         // The breakout already happened while no order was in place (e.g. a
+         // position was open): skip it rather than chase the price.
+         LogLine(StringFormat("SKIP late entry %s level=%s", tr.direction > 0 ? "BUY" : "SELL",
+                              DoubleToString(entry, _Digits)));
          tr.traded = true;
+        }
       return;
      }
 
