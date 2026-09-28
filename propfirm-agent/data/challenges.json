@@ -1,0 +1,261 @@
+{
+  "_note": "Valeurs APPROXIMATIVES pour des comptes 100k. Les prop firms changent souvent leurs prix et règles : lance l'agent Claude (skill propfirm-finder) pour revérifier sur les sites officiels avant d'acheter. Pourcentages exprimés en % du capital initial. Champ 'countries.MA' : oui / a_confirmer / non (vérifié via recherche web, sept. 2026).",
+  "challenges": [
+    {
+      "id": "ftmo-2step-100k",
+      "firm": "FTMO",
+      "program": "FTMO Challenge 2-Step",
+      "size": 100000,
+      "price_usd": 590,
+      "fee_refund": true,
+      "phases": [
+        {
+          "target": 10,
+          "min_days": 4,
+          "time_limit_days": null
+        },
+        {
+          "target": 5,
+          "min_days": 4,
+          "time_limit_days": null
+        }
+      ],
+      "daily_dd": 5,
+      "max_dd": 10,
+      "dd_type": "static",
+      "profit_split": 80,
+      "first_payout_days": 14,
+      "payout_every_days": 14,
+      "consistency_rule": false,
+      "news_trading": "restreint (compte standard)",
+      "weekend_holding": "non (compte standard)",
+      "source": "https://ftmo.com",
+      "last_checked": "2025",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste FTMO des pays restreints (FAQ CFD, sept. 2026)",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "id": "fundednext-stellar2-100k",
+      "firm": "FundedNext",
+      "program": "Stellar 2-Step",
+      "size": 100000,
+      "price_usd": 519,
+      "fee_refund": true,
+      "phases": [
+        {
+          "target": 8,
+          "min_days": 5,
+          "time_limit_days": null
+        },
+        {
+          "target": 5,
+          "min_days": 5,
+          "time_limit_days": null
+        }
+      ],
+      "daily_dd": 5,
+      "max_dd": 10,
+      "dd_type": "static",
+      "profit_split": 80,
+      "first_payout_days": 21,
+      "payout_every_days": 14,
+      "consistency_rule": false,
+      "news_trading": "oui (restrictions sur compte funded)",
+      "weekend_holding": "oui",
+      "source": "https://fundednext.com",
+      "last_checked": "2025",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste FundedNext des pays restreints (CFD)",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "id": "fundednext-stellar1-100k",
+      "firm": "FundedNext",
+      "program": "Stellar 1-Step",
+      "size": 100000,
+      "price_usd": 549,
+      "fee_refund": true,
+      "phases": [
+        {
+          "target": 10,
+          "min_days": 2,
+          "time_limit_days": null
+        }
+      ],
+      "daily_dd": 3,
+      "max_dd": 6,
+      "dd_type": "static",
+      "profit_split": 80,
+      "first_payout_days": 5,
+      "payout_every_days": 5,
+      "consistency_rule": false,
+      "news_trading": "oui (restrictions sur compte funded)",
+      "weekend_holding": "oui",
+      "source": "https://fundednext.com",
+      "last_checked": "2025",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste FundedNext des pays restreints (CFD)",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "id": "the5ers-highstakes-100k",
+      "firm": "The5ers",
+      "program": "High Stakes 2-Step",
+      "size": 100000,
+      "price_usd": 495,
+      "fee_refund": true,
+      "phases": [
+        {
+          "target": 8,
+          "min_days": 3,
+          "time_limit_days": null
+        },
+        {
+          "target": 5,
+          "min_days": 3,
+          "time_limit_days": null
+        }
+      ],
+      "daily_dd": 5,
+      "max_dd": 10,
+      "dd_type": "static",
+      "profit_split": 80,
+      "first_payout_days": 14,
+      "payout_every_days": 14,
+      "consistency_rule": false,
+      "news_trading": "restreint",
+      "weekend_holding": "oui",
+      "source": "https://the5ers.com",
+      "last_checked": "2025",
+      "countries": {
+        "MA": {
+          "status": "a_confirmer",
+          "note": "Sources contradictoires : écrire à help@the5ers.com avant d'acheter",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "id": "fundingpips-2step-100k",
+      "firm": "Funding Pips",
+      "program": "2-Step",
+      "size": 100000,
+      "price_usd": 399,
+      "fee_refund": false,
+      "phases": [
+        {
+          "target": 8,
+          "min_days": 3,
+          "time_limit_days": null
+        },
+        {
+          "target": 5,
+          "min_days": 3,
+          "time_limit_days": null
+        }
+      ],
+      "daily_dd": 5,
+      "max_dd": 10,
+      "dd_type": "static",
+      "profit_split": 80,
+      "first_payout_days": 7,
+      "payout_every_days": 7,
+      "consistency_rule": false,
+      "news_trading": "restreint",
+      "weekend_holding": "oui",
+      "source": "https://fundingpips.com",
+      "last_checked": "2025",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Liste officielle restreinte : Iran, Vietnam, EAU uniquement",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "id": "alphacapital-pro-100k",
+      "firm": "Alpha Capital",
+      "program": "Alpha Pro 2-Step",
+      "size": 100000,
+      "price_usd": 497,
+      "fee_refund": true,
+      "phases": [
+        {
+          "target": 8,
+          "min_days": 3,
+          "time_limit_days": null
+        },
+        {
+          "target": 5,
+          "min_days": 3,
+          "time_limit_days": null
+        }
+      ],
+      "daily_dd": 4,
+      "max_dd": 8,
+      "dd_type": "static",
+      "profit_split": 80,
+      "first_payout_days": 14,
+      "payout_every_days": 14,
+      "consistency_rule": false,
+      "news_trading": "restreint",
+      "weekend_holding": "oui",
+      "source": "https://alphacapitalgroup.uk",
+      "last_checked": "2025",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent des 21 pays restreints par Alpha Capital",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "id": "e8-one-100k",
+      "firm": "E8 Markets",
+      "program": "E8 One (1-Step)",
+      "size": 100000,
+      "price_usd": 588,
+      "fee_refund": true,
+      "phases": [
+        {
+          "target": 9,
+          "min_days": 0,
+          "time_limit_days": null
+        }
+      ],
+      "daily_dd": 4,
+      "max_dd": 6,
+      "dd_type": "trailing",
+      "profit_split": 80,
+      "first_payout_days": 8,
+      "payout_every_days": 8,
+      "consistency_rule": true,
+      "news_trading": "oui",
+      "weekend_holding": "oui",
+      "source": "https://e8markets.com",
+      "last_checked": "2025",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste E8 (attention : 'Western Sahara' y figure)",
+          "checked": "2026-09"
+        }
+      }
+    }
+  ]
+}
