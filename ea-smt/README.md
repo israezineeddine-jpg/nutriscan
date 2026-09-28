@@ -23,6 +23,7 @@
 | `InpMaxLossStopPct` | 9% | كيحبس الـ EA نهائياً قبل ما يوصل لحد 10% |
 | `InpMaxTradesPerDay` | 3 | أقصى عدد ديال الصفقات فالنهار |
 | `InpMaxOpenPositions` | 1 | صفقة وحدة مفتوحة فنفس الوقت |
+| `InpMinLotFallback` | false | إلا كانت 0.5% صغيرة على أصغر lot (0.01)، كيستعمل 0.01 بشرط ما تفوتش المخاطرة الحقيقية 2 مرات المسموح |
 | `InpMaxSpread` | 0.60 | مايدخلش إلا فات السبريد 0.60$ (بالثمن، ماشي بالـ points، باش يخدم مع أي بروكر) |
 | `InpNoTradeStartHour` / `EndHour` | 23 → 1 | مايتداولش فوقت الـ rollover (بتوقيت السيرفر) |
 | `InpUseNewsFilter` | true | كيحبس 5 دقايق قبل و5 دقايق بعد أخبار USD القوية، ماشي غير دقيقتين |
@@ -78,4 +79,5 @@
 `SMT EA SUMMARY: silver=XAGUSDm ready=yes setups=12 signals=9 orders=7 last block=-`
 - `ready=NO`: التاريخ ديال الفضة ناقص، حمّلو من History Center.
 - `setups=0`: ماكاينش SMT فهاد الفترة، ولا الشموع ديال الذهب والفضة ماكيتطابقوش فالوقت.
+- `last block=lot size below minimum`: الرصيد صغير على المسافة ديال الـ SL. كبّر الـ deposit فالـ Tester (مثلاً 10000) ولا شعّل `InpMinLotFallback`.
 - `orders=0` مع `last block=...`: هادا هو السبب اللي منع الصفقات، مثلاً `spread too wide` ولا `lot size`.

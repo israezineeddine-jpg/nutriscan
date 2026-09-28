@@ -40,6 +40,7 @@ input double InpDailyLossStopPct  = 4.0;   // Stop the day at this loss % (FTMO 
 input double InpMaxLossStopPct    = 9.0;   // Stop the EA at this total loss % (FTMO limit = 10)
 input int    InpMaxTradesPerDay   = 3;     // Max trades per day
 input int    InpMaxOpenPositions  = 1;     // Max open positions
+input bool   InpMinLotFallback    = false; // Use the minimum lot when risk % gives less (max 2x the risk)
 
 input group "Filters"
 input double InpMaxSpread          = 0.60;  // Max spread in price (0.60 = 60 cents on gold), 0 = off
@@ -73,6 +74,7 @@ struct TradeSetup
    bool     silverSwept;
    ulong    ticket;        // pending stop order (0 = none)
    bool     traded;        // order already filled
+   bool     lotWarned;     // lot-size problem already logged
   };
 
 TradeSetup g_setups[];
@@ -443,8 +445,26 @@ double CalcLots(const int direction, const double entry, const double stop)
    double maxLot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
    double lots = MathFloor(risk / lossPerLot / step) * step;
    if(lots < minLot)
-      return 0.0; // stop too wide for the allowed risk
+     {
+      // Stop too wide for the allowed risk: optionally trade the minimum lot
+      // if its real risk stays within 2x the target.
+      if(InpMinLotFallback && minLot * lossPerLot <= 2.0 * RiskMoney())
+         return minLot;
+      return 0.0;
+     }
    return NormalizeDouble(MathMin(lots, maxLot), 2);
+  }
+
+// Explains the lot size computation (for the log).
+string LotDetail(const double entry, const double stop)
+  {
+   double tickSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+   double tickValue = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   double lossPerLot = tickSize > 0.0 ? MathAbs(entry - stop) / tickSize * tickValue : 0.0;
+   double minLot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   return StringFormat("balance=%.2f %s, risk=%.2f (%.2f%%), SL distance=%s, loss per 1 lot=%.2f, min lot=%.2f -> risk with min lot=%.2f",
+                       AccountInfoDouble(ACCOUNT_BALANCE), AccountInfoString(ACCOUNT_CURRENCY), RiskMoney(), InpRiskPercent,
+                       DoubleToString(MathAbs(entry - stop), _Digits), lossPerLot, minLot, minLot * lossPerLot);
   }
 
 // Room left before the daily guard, keeping the new trade's full risk inside it.
@@ -481,7 +501,8 @@ bool CanOpenNewTrade()
    string reason = BlockReason();
    if(reason != "" && reason != g_lastBlock)
       LogLine("BLOCKED: " + reason);
-   g_lastBlock = reason;
+   if(reason != "")
+      g_lastBlock = reason;
    return (reason == "");
   }
 
@@ -525,7 +546,8 @@ bool OpenMarket(const TradeSetup &tr)
    double lots = CalcLots(tr.direction, price, tr.stop);
    if(lots <= 0.0)
      {
-      LogLine("SKIP: stop too wide for risk, entry " + DoubleToString(price, _Digits));
+      LogLine("BLOCKED: lot size below minimum — " + LotDetail(price, tr.stop));
+      g_lastBlock = "lot size below minimum";
       return false;
      }
    bool ok = tr.direction > 0
@@ -575,9 +597,10 @@ void PlaceStopOrder(TradeSetup &tr)
    double lots = CalcLots(tr.direction, entry, stop);
    if(lots <= 0.0)
      {
-      if(g_lastBlock != "lot size")
-         LogLine("BLOCKED: lot size below minimum (stop too wide for the risk %)");
-      g_lastBlock = "lot size";
+      if(!tr.lotWarned)
+         LogLine("BLOCKED: lot size below minimum — " + LotDetail(entry, stop));
+      tr.lotWarned = true;
+      g_lastBlock = "lot size below minimum";
       return;
      }
 
@@ -916,6 +939,7 @@ void ProcessBar(const int s, const bool live)
                ns.silverSwept = ss;
                ns.ticket = 0;
                ns.traded = false;
+               ns.lotWarned = false;
                int size = ArraySize(g_setups);
                ArrayResize(g_setups, size + 1);
                g_setups[size] = ns;
