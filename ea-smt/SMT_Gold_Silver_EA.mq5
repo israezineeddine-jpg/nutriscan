@@ -120,6 +120,13 @@ CTrade   g_trade;
 
 //================= HELPERS =================
 
+// Global variables keep state across restarts on a live account only:
+// in the tester they would leak between runs (e.g. an old deposit).
+bool UseGlobalVars()
+  {
+   return !(MQLInfoInteger(MQL_TESTER) || MQLInfoInteger(MQL_OPTIMIZATION));
+  }
+
 string GvName(const string key)
   {
    return "SMTEA_" + key + "_" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) + "_" + IntegerToString((long)InpMagic);
@@ -306,13 +313,16 @@ void UpdateDay()
    g_dailyHalt = false;
 
    // Keep the start-of-day balance across EA restarts.
-   if(GlobalVariableCheck(GvName("day")) && (datetime)GlobalVariableGet(GvName("day")) == day)
+   if(UseGlobalVars() && GlobalVariableCheck(GvName("day")) && (datetime)GlobalVariableGet(GvName("day")) == day)
       g_dayStartBalance = GlobalVariableGet(GvName("daybal"));
    else
      {
       g_dayStartBalance = AccountInfoDouble(ACCOUNT_BALANCE);
-      GlobalVariableSet(GvName("day"), (double)day);
-      GlobalVariableSet(GvName("daybal"), g_dayStartBalance);
+      if(UseGlobalVars())
+        {
+         GlobalVariableSet(GvName("day"), (double)day);
+         GlobalVariableSet(GvName("daybal"), g_dayStartBalance);
+        }
      }
   }
 
@@ -334,7 +344,8 @@ void CheckGuards()
    if(!g_totalHalt && equity <= g_initialBalance * (1.0 - InpMaxLossStopPct / 100.0))
      {
       g_totalHalt = true;
-      GlobalVariableSet(GvName("halt"), 1.0);
+      if(UseGlobalVars())
+         GlobalVariableSet(GvName("halt"), 1.0);
       CloseAllPositions();
       DeleteAllPendingOrders();
       LogLine("MAX LOSS GUARD: equity " + DoubleToString(equity, 2) + " — EA stopped permanently");
@@ -534,7 +545,7 @@ void DrawTrade(const TradeSetup &tr, const double entry, const double target)
      }
   }
 
-bool OpenMarket(const TradeSetup &tr)
+bool OpenMarket(TradeSetup &tr)
   {
    if(!CanOpenNewTrade())
       return false;
@@ -546,7 +557,9 @@ bool OpenMarket(const TradeSetup &tr)
    double lots = CalcLots(tr.direction, price, tr.stop);
    if(lots <= 0.0)
      {
-      LogLine("BLOCKED: lot size below minimum — " + LotDetail(price, tr.stop));
+      if(!tr.lotWarned)
+         LogLine("BLOCKED: lot size below minimum — " + LotDetail(price, tr.stop));
+      tr.lotWarned = true;
       g_lastBlock = "lot size below minimum";
       return false;
      }
@@ -1058,21 +1071,25 @@ int OnInit()
       return INIT_PARAMETERS_INCORRECT;
      }
    Print("SMT EA: using silver symbol ", g_silver);
+   // The initial balance is printed so a wrong stored value is easy to spot.
 
    double pointSize = InpPointSize > 0.0 ? InpPointSize : _Point;
    g_slBuffer = InpBufferPoints * pointSize;
 
    if(InpInitialBalance > 0.0)
       g_initialBalance = InpInitialBalance;
-   else if(GlobalVariableCheck(GvName("init")))
+   else if(UseGlobalVars() && GlobalVariableCheck(GvName("init")))
       g_initialBalance = GlobalVariableGet(GvName("init"));
    else
      {
       g_initialBalance = AccountInfoDouble(ACCOUNT_BALANCE);
-      GlobalVariableSet(GvName("init"), g_initialBalance);
+      if(UseGlobalVars())
+         GlobalVariableSet(GvName("init"), g_initialBalance);
      }
 
-   g_totalHalt = GlobalVariableCheck(GvName("halt")) && GlobalVariableGet(GvName("halt")) > 0.0;
+   Print(StringFormat("SMT EA: initial balance %.2f -> risk per trade %.2f, daily stop %.2f, max stop %.2f",
+                      g_initialBalance, RiskMoney(), DailyLossLimitMoney(), g_initialBalance * InpMaxLossStopPct / 100.0));
+   g_totalHalt = UseGlobalVars() && GlobalVariableCheck(GvName("halt")) && GlobalVariableGet(GvName("halt")) > 0.0;
    if(g_totalHalt)
       LogLine("EA is halted (max loss guard hit earlier). Delete global variable " + GvName("halt") + " to reset.");
 

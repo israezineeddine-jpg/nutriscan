@@ -81,3 +81,9 @@
 - `setups=0`: ماكاينش SMT فهاد الفترة، ولا الشموع ديال الذهب والفضة ماكيتطابقوش فالوقت.
 - `last block=lot size below minimum`: الرصيد صغير على المسافة ديال الـ SL. كبّر الـ deposit فالـ Tester (مثلاً 10000) ولا شعّل `InpMinLotFallback`.
 - `orders=0` مع `last block=...`: هادا هو السبب اللي منع الصفقات، مثلاً `spread too wide` ولا `lot size`.
+
+## الرصيد الأول (Initial balance)
+- فالحساب الحقيقي، الـ EA كيحفظ الرصيد ديال أول مرة شعلتيه فـ Global Variable، باش الحدود ديال 4% و9% يبقاو محسوبين من الرصيد الأول ديال التحدي.
+- فالـ Tester، ماكيستعملش هاد المتغيرات، وكيخدم ديما بالـ deposit ديال الـ Tester.
+- إلا كان الرصيد الأول غالط، كتبو يدوياً فـ `InpInitialBalance`. ولا حيد المتغيرات `SMTEA_...` من **Tools → Global Variables (F3)**.
+- ملي كتشعل الـ EA، كيكتب فالـ Journal: `initial balance ... -> risk per trade ...`
