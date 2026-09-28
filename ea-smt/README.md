@@ -23,7 +23,7 @@
 | `InpMaxLossStopPct` | 9% | كيحبس الـ EA نهائياً قبل ما يوصل لحد 10% |
 | `InpMaxTradesPerDay` | 3 | أقصى عدد ديال الصفقات فالنهار |
 | `InpMaxOpenPositions` | 1 | صفقة وحدة مفتوحة فنفس الوقت |
-| `InpMaxSpreadPoints` | 50 | مايدخلش إلا كان السبريد كبير |
+| `InpMaxSpread` | 0.60 | مايدخلش إلا فات السبريد 0.60$ (بالثمن، ماشي بالـ points، باش يخدم مع أي بروكر) |
 | `InpNoTradeStartHour` / `EndHour` | 23 → 1 | مايتداولش فوقت الـ rollover (بتوقيت السيرفر) |
 | `InpUseNewsFilter` | true | كيحبس 5 دقايق قبل و5 دقايق بعد أخبار USD القوية، ماشي غير دقيقتين |
 
@@ -72,3 +72,10 @@
 **⚠️ الـ backtest فـ MT4:** الـ Strategy Tester ديال MT4 كيحاكي غير الرمز اللي كتجرب عليه، يعني الذهب. الـ EA كيقرا الفضة من ملف التاريخ ديالها بالوقت، ولكن:
 - خاصك تحمّل التاريخ ديال **XAGUSD M5** كامل (Tools → History Center).
 - النتائج أقل دقة من MT5. للـ backtest، MT5 أحسن. MT4 مزيان للتداول الحقيقي.
+
+## علاش ماكاينش صفقات؟
+فآخر الـ backtest، شوف الـ **Journal**. غادي تلقى سطر بحال هادا:
+`SMT EA SUMMARY: silver=XAGUSDm ready=yes setups=12 signals=9 orders=7 last block=-`
+- `ready=NO`: التاريخ ديال الفضة ناقص، حمّلو من History Center.
+- `setups=0`: ماكاينش SMT فهاد الفترة، ولا الشموع ديال الذهب والفضة ماكيتطابقوش فالوقت.
+- `orders=0` مع `last block=...`: هادا هو السبب اللي منع الصفقات، مثلاً `spread too wide` ولا `lot size`.

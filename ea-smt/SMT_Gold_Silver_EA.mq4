@@ -41,7 +41,7 @@ input int    InpMaxTradesPerDay   = 3;     // Max trades per day
 input int    InpMaxOpenPositions  = 1;     // Max open positions
 
 input string InpSectionFilters = "===== Filters ====="; // -----
-input int    InpMaxSpreadPoints   = 50;    // Max spread (points), 0 = off
+input double InpMaxSpread          = 0.60;  // Max spread in price (0.60 = 60 cents on gold), 0 = off
 input bool   InpUseSessionFilter  = true;  // Block trading during rollover hours
 input int    InpNoTradeStartHour  = 23;    // No-trade start hour (server time)
 input int    InpNoTradeEndHour    = 1;     // No-trade end hour (server time)
@@ -107,6 +107,9 @@ datetime g_newsTimes[];
 
 string   g_silver        = "";    // resolved Silver symbol
 int      g_signalCount   = 0;
+int      g_setupCount    = 0;
+int      g_orderCount    = 0;
+string   g_lastBlock     = "";
 int      g_objCount      = 0;
 
 //================= HELPERS =================
@@ -421,9 +424,10 @@ bool NewsBlocked()
 
 bool SpreadTooWide()
   {
-   if(InpMaxSpreadPoints <= 0)
+   if(InpMaxSpread <= 0.0)
       return false;
-   return (MarketInfo(_Symbol, MODE_SPREAD) > InpMaxSpreadPoints);
+   RefreshRates();
+   return (Ask - Bid > InpMaxSpread);
   }
 
 // Conditions that must hold for any order to exist (pending or new).
@@ -462,15 +466,35 @@ bool DailyRoomFor(const double riskMoney)
    return (lossSoFar + riskMoney < DailyLossLimitMoney());
   }
 
+// "" when a new trade is allowed, otherwise the reason.
+string BlockReason()
+  {
+   if(g_totalHalt)
+      return "max loss guard";
+   if(g_dailyHalt)
+      return "daily loss guard";
+   if(SessionBlocked())
+      return "rollover hours";
+   if(NewsBlocked())
+      return "news window";
+   if(SpreadTooWide())
+      return "spread too wide";
+   if(CountPositions() >= InpMaxOpenPositions)
+      return "max open positions";
+   if(TradesToday() >= InpMaxTradesPerDay)
+      return "max trades per day";
+   if(!DailyRoomFor(RiskMoney()))
+      return "not enough daily loss room";
+   return "";
+  }
+
 bool CanOpenNewTrade()
   {
-   if(!TradingWindowOpen() || SpreadTooWide())
-      return false;
-   if(CountPositions() >= InpMaxOpenPositions)
-      return false;
-   if(TradesToday() >= InpMaxTradesPerDay)
-      return false;
-   return DailyRoomFor(RiskMoney());
+   string reason = BlockReason();
+   if(reason != "" && reason != g_lastBlock)
+      LogLine("BLOCKED: " + reason);
+   g_lastBlock = reason;
+   return (reason == "");
   }
 
 void DrawTrade(const TradeSetup &tr, const double entry, const double target)
@@ -532,7 +556,10 @@ bool OpenMarket(const TradeSetup &tr)
                         DoubleToString(filled, _Digits), DoubleToString(stop, _Digits),
                         DoubleToString(tp, _Digits), (int)MarketInfo(_Symbol, MODE_SPREAD), ticket, err));
    if(ticket > 0)
+     {
+      g_orderCount++;
       DrawTrade(tr, price, tp);
+     }
    return (ticket > 0);
   }
 
@@ -566,7 +593,12 @@ void PlaceStopOrder(TradeSetup &tr)
    double tp = RoundToTick(entry + tr.direction * InpRiskReward * risk);
    double lots = CalcLots(entry, stop);
    if(lots <= 0.0)
+     {
+      if(g_lastBlock != "lot size")
+         LogLine("BLOCKED: lot size below minimum (stop too wide for the risk %)");
+      g_lastBlock = "lot size";
       return;
+     }
 
    int type = tr.direction > 0 ? OP_BUYSTOP : OP_SELLSTOP;
    int ticket = OrderSend(_Symbol, type, lots, entry, InpSlippagePoints, stop, tp,
@@ -578,6 +610,7 @@ void PlaceStopOrder(TradeSetup &tr)
                         DoubleToString(stop, _Digits), DoubleToString(tp, _Digits), ticket, err));
    if(ticket > 0)
      {
+      g_orderCount++;
       tr.ticket = ticket;
       DrawTrade(tr, entry, tp);
      }
@@ -916,6 +949,7 @@ void ProcessBar(const int s, const bool live)
                int size = ArraySize(g_setups);
                ArrayResize(g_setups, size + 1);
                g_setups[size] = ns;
+               g_setupCount++;
                if(live)
                   LogLine(StringFormat("SETUP %s entry=%s sl=%s", direction > 0 ? "BUY" : "SELL",
                                        DoubleToString(entryLevel, _Digits), DoubleToString(stopLevel, _Digits)));
@@ -1067,6 +1101,9 @@ int OnInit()
 
 void OnDeinit(const int reason)
   {
+   Print(StringFormat("SMT EA SUMMARY: silver=%s ready=%s setups=%d signals=%d orders=%d last block=%s",
+                      g_silver, g_ready ? "yes" : "NO (missing history)", g_setupCount, g_signalCount,
+                      g_orderCount, g_lastBlock == "" ? "-" : g_lastBlock));
    EventKillTimer();
    DeleteAllPendingOrders();
   }
