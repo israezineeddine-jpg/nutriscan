@@ -189,6 +189,19 @@ def cmd_simulate(args):
               "ou améliore ta stratégie avant d'acheter.")
 
 
+def cmd_firms(args):
+    firms = json.loads(DATA.read_text(encoding="utf-8")).get("firms", [])
+    with_rules = {c["firm"] for c in json.loads(DATA.read_text(encoding="utf-8"))["challenges"]}
+    icons = {"oui": "✅", "a_confirmer": "⚠️ ", "non": "❌"}
+    print(f"\nProp firms — acceptation du pays {args.pays}\n")
+    order = {"oui": 0, "a_confirmer": 1, "non": 2}
+    for f in sorted(firms, key=lambda f: order.get(f["countries"].get(args.pays, {}).get("status"), 3)):
+        info = f["countries"].get(args.pays, {"status": "inconnu", "note": "non vérifié"})
+        rules = "règles dans l'agent" if f["firm"] in with_rules else "règles à ajouter"
+        print(f"{icons.get(info['status'], '?  ')} {f['firm']:<20}{rules:<22}{info['note']}")
+    print("\nVérifie toujours auprès du support avant d'acheter.")
+
+
 def main():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--pays", default="MA", help="code pays ISO (MA = Maroc) ou ALL")
@@ -211,6 +224,9 @@ def main():
     s.add_argument("--runs", type=int, default=5000)
     s.add_argument("--seed", type=int, default=42)
     s.set_defaults(func=cmd_simulate)
+
+    f = sub.add_parser("firmes", parents=[common], help="lister les firms qui acceptent le pays")
+    f.set_defaults(func=cmd_firms)
 
     args = ap.parse_args()
     args.func(args)

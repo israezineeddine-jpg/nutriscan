@@ -7,6 +7,9 @@ Trouve le challenge **le plus facile**, **le plus rapide** et **qui rapporte le 
 ```bash
 cd propfirm-agent
 
+# Liste des firms qui acceptent / refusent le Maroc
+python3 propfirm_agent.py firmes
+
 # Classements (par défaut : seulement les firms qui acceptent le Maroc)
 python3 propfirm_agent.py classement                 # global
 python3 propfirm_agent.py classement --par facile

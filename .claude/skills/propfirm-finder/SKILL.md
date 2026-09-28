@@ -9,7 +9,9 @@ Tu aides un trader basé au **Maroc** à choisir le challenge de prop firm le pl
 
 ## Étapes
 
-1. **Pays d'abord.** Ne propose que les firms dont `countries.MA.status` vaut `oui` dans
+1. **Pays d'abord.** La liste `firms` de `challenges.json` donne le statut Maroc de chaque firm (`python3 propfirm_agent.py firmes`).
+   Pour les firms marquées « règles à ajouter », cherche leurs règles 100k sur le web et ajoute-les dans `challenges` avant de classer.
+   Filtre : Ne propose que les firms dont `countries.MA.status` vaut `oui` dans
    `propfirm-agent/data/challenges.json`. Une firm `a_confirmer` n'apparaît que si l'utilisateur la demande, avec un avertissement clair.
 2. **Mettre les données à jour** si `last_checked` a plus de 3 mois ou si l'utilisateur le demande :
    - WebSearch « <firm> restricted countries » et « <firm> 100k challenge rules price » ;

@@ -257,5 +257,172 @@
         }
       }
     }
+  ],
+  "firms": [
+    {
+      "firm": "FTMO",
+      "site": "https://ftmo.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste des pays restreints (FAQ CFD, sept. 2026)",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "FundedNext",
+      "site": "https://fundednext.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste des pays restreints (CFD)",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "Funding Pips",
+      "site": "https://fundingpips.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Liste restreinte : Iran, Vietnam, EAU uniquement",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "Alpha Capital",
+      "site": "https://alphacapitalgroup.uk",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent des 21 pays restreints",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "E8 Markets",
+      "site": "https://e8markets.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste ('Western Sahara' y figure)",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "The5ers",
+      "site": "https://the5ers.com",
+      "countries": {
+        "MA": {
+          "status": "a_confirmer",
+          "note": "Sources contradictoires, écrire à help@the5ers.com",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "Maven Trading",
+      "site": "https://maventrading.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste (la Tunisie y est, pas le Maroc)",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "FunderPro",
+      "site": "https://funderpro.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste des pays restreints",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "Blue Guardian",
+      "site": "https://blueguardian.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste (Algérie et Tunisie y sont, pas le Maroc)",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "Goat Funded Trader",
+      "site": "https://goatfundedtrader.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste des 26 pays restreints",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "Instant Funding",
+      "site": "https://instantfunding.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Absent de la liste (financement sans challenge)",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "BrightFunded",
+      "site": "https://brightfunded.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Liste courte : Cuba, Iran, Corée du Nord, Syrie, Vietnam, Pakistan",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "FundingTraders",
+      "site": "https://fundingtraders.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Liste courte : Afghanistan, Kazakhstan, Mongolie, Venezuela, Myanmar",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "SabioTrade",
+      "site": "https://sabiotrade.com",
+      "countries": {
+        "MA": {
+          "status": "oui",
+          "note": "Cité parmi les firms acceptant le Maroc (TradersUnion), à confirmer au support",
+          "checked": "2026-09"
+        }
+      }
+    },
+    {
+      "firm": "FTUK",
+      "site": "https://ftuk.com",
+      "countries": {
+        "MA": {
+          "status": "non",
+          "note": "Le Maroc est dans la liste des pays restreints",
+          "checked": "2026-09"
+        }
+      }
+    }
   ]
 }
