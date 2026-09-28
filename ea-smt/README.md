@@ -1,4 +1,7 @@
-# SMT Gold/Silver EA — MT5
+# SMT Gold/Silver EA — MT5 و MT4
+
+- **MT5:** `SMT_Gold_Silver_EA.mq5`
+- **MT4:** `SMT_Gold_Silver_EA.mq4`، نفس المنطق ونفس الحماية (شوف القسم ديال MT4 لتحت)
 
 هاد الـ EA هو نسخة MQL5 من الأنديكاتور ديالك ديال TradingView: **"SMT — ENTRY SL TP"** (الملف `SMT_indicator.pine`).
 زدت فيه حماية باش يحترم قواعد FTMO.
@@ -46,3 +49,26 @@
   1. backtest فالـ Strategy Tester بـ "Every tick based on real ticks"، وخاص تكون عندك البيانات ديال XAGUSD.
   2. تقارن الإشارات ديال الـ backtest مع الأنديكاتور فـ TradingView على شي أيام.
   3. تجربو شي أسابيع فالـ **Free Trial ديال FTMO**.
+
+## نسخة MT4 (`SMT_Gold_Silver_EA.mq4`)
+نفس المنطق ديال الـ SMT ونفس الحماية ديال FTMO، مع هاد الفروقات:
+
+| الحاجة | MT5 | MT4 |
+|---|---|---|
+| فلتر الأخبار | أوتوماتيكي من التقويم الاقتصادي ديال MT5 | **يدوي**: كتكتب الأوقات فـ `InpNewsTimes` |
+| الـ log | `MQL5/Files/SMT_EA_log.csv` | `MQL4/Files/SMT_EA_log.csv` |
+| الـ backtest | مزيان مع جوج رموز (الذهب والفضة) | أضعف، شوف الملاحظات لتحت |
+
+**التركيب فـ MT4:**
+1. **File → Open Data Folder → MQL4 → Experts**، وحط فيه `SMT_Gold_Silver_EA.mq4`.
+2. حلّو فـ MetaEditor ودير **Compile (F7)**.
+3. زيد XAGUSD فـ Market Watch، وحل شارت ديال **XAGUSD M5** مرة وحدة باش يتحمل التاريخ ديالو.
+4. حط الـ EA على شارت **XAUUSD M5** وشعّل **AutoTrading**.
+
+**فلتر الأخبار فـ MT4:** كتب أوقات الأخبار القوية ديال السيمانة بتوقيت السيرفر، مفرّقين بـ `;`. مثلاً:
+`2026.10.02 15:30;2026.10.07 21:00`
+الـ EA كيحبس التداول 5 دقايق قبل كل وقت و5 دقايق بعدو. خدّ الأوقات من ForexFactory ورد البال للفرق ديال الساعة مع السيرفر.
+
+**⚠️ الـ backtest فـ MT4:** الـ Strategy Tester ديال MT4 كيحاكي غير الرمز اللي كتجرب عليه، يعني الذهب. الـ EA كيقرا الفضة من ملف التاريخ ديالها بالوقت، ولكن:
+- خاصك تحمّل التاريخ ديال **XAGUSD M5** كامل (Tools → History Center).
+- النتائج أقل دقة من MT5. للـ backtest، MT5 أحسن. MT4 مزيان للتداول الحقيقي.
