@@ -17,6 +17,7 @@ class BacktestConfig:
     max_leverage: float = 1.0         # cap on position notional / equity
     commission_pct: float = 0.0005    # per side, fraction of notional
     slippage_pct: float = 0.0002      # per side, adverse fill vs. quoted price
+    slippage_points: float = 0.0      # per side, adverse fill in price units (e.g. ticks on futures)
     atr_period: int = 14
     stop_atr: float | None = 2.0      # stop distance in ATRs (None = no stop)
     target_atr: float | None = None   # take-profit distance in ATRs (None = no target)
@@ -24,6 +25,10 @@ class BacktestConfig:
     max_hold_bars: int | None = None  # time stop
     flatten_eod: bool = False         # close everything on the last bar of each session
     allow_short: bool = True
+    # futures: P&L per 1.0 price move per contract, fee per contract per side, whole contracts only
+    point_value: float = 1.0
+    commission_per_contract: float = 0.0
+    whole_contracts: bool = False
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "BacktestConfig":
@@ -39,6 +44,8 @@ def run_backtest(df: pd.DataFrame, signals: pd.Series, config: BacktestConfig | 
     days = df.index.normalize()
     last_of_day = np.r_[days[1:] != days[:-1], True]
     n = len(df)
+    pv = cfg.point_value
+    skipped = [0]  # entries skipped because risk allowed less than one contract
 
     cash = cfg.initial_capital
     pos = 0.0            # signed quantity
@@ -49,20 +56,20 @@ def run_backtest(df: pd.DataFrame, signals: pd.Series, config: BacktestConfig | 
     equity = np.empty(n)
 
     def fill(px, side):  # side +1 buying, -1 selling
-        return px * (1 + side * cfg.slippage_pct)
+        return px * (1 + side * cfg.slippage_pct) + side * cfg.slippage_points
 
     def close_position(i, px, reason):
         nonlocal cash, pos
         side = -np.sign(pos)
         fpx = fill(px, side)
-        fee = abs(pos) * fpx * cfg.commission_pct
-        cash += pos * fpx - fee
-        pnl = pos * (fpx - entry_px) - fee - entry_cost
+        fee = abs(pos) * (fpx * pv * cfg.commission_pct + cfg.commission_per_contract)
+        cash += pos * fpx * pv - fee
+        pnl = pos * (fpx - entry_px) * pv - fee - entry_cost
         trades.append({
             "entry_time": df.index[entry_i], "exit_time": df.index[i],
             "side": "long" if pos > 0 else "short", "qty": abs(pos),
             "entry": entry_px, "exit": fpx, "pnl": pnl,
-            "return_pct": pnl / (abs(pos) * entry_px) * 100,
+            "return_pct": pnl / (abs(pos) * entry_px * pv) * 100,
             "r_multiple": pnl / entry_risk if entry_risk else np.nan,
             "bars_held": i - entry_i, "exit_reason": reason,
         })
@@ -75,17 +82,20 @@ def run_backtest(df: pd.DataFrame, signals: pd.Series, config: BacktestConfig | 
         a = atr[i - 1] if i > 0 else atr[i]
         if cfg.stop_atr:
             dist = cfg.stop_atr * a
-            qty = eq * cfg.risk_per_trade / dist if dist > 0 else 0.0
+            qty = eq * cfg.risk_per_trade / (dist * pv) if dist > 0 else 0.0
         else:
-            dist, qty = 0.0, eq * cfg.max_leverage / fpx
-        qty = min(qty, eq * cfg.max_leverage / fpx)
+            dist, qty = 0.0, eq * cfg.max_leverage / (fpx * pv)
+        qty = min(qty, eq * cfg.max_leverage / (fpx * pv))
+        if cfg.whole_contracts:
+            qty = float(np.floor(qty))
         if qty <= 0:
+            skipped[0] += 1
             return
-        entry_cost = qty * fpx * cfg.commission_pct
-        cash -= direction * qty * fpx + entry_cost
+        entry_cost = qty * (fpx * pv * cfg.commission_pct + cfg.commission_per_contract)
+        cash -= direction * qty * fpx * pv + entry_cost
         pos, entry_px, entry_i = direction * qty, fpx, i
         # 1R = planned loss at the stop; without a stop, risk_per_trade of the notional
-        entry_risk = qty * dist if dist else qty * fpx * cfg.risk_per_trade
+        entry_risk = qty * dist * pv if dist else qty * fpx * pv * cfg.risk_per_trade
         stop = fpx - direction * dist if cfg.stop_atr else 0.0
         target = fpx + direction * cfg.target_atr * a if cfg.target_atr else 0.0
 
@@ -119,7 +129,7 @@ def run_backtest(df: pd.DataFrame, signals: pd.Series, config: BacktestConfig | 
             elif cfg.flatten_eod and last_of_day[i]:
                 close_position(i, c[i], "eod")
 
-        equity[i] = cash + pos * c[i]
+        equity[i] = cash + pos * c[i] * pv
 
     if pos:
         close_position(n - 1, c[-1], "end")
@@ -127,9 +137,12 @@ def run_backtest(df: pd.DataFrame, signals: pd.Series, config: BacktestConfig | 
 
     eq = pd.Series(equity, index=df.index, name="equity")
     tr = pd.DataFrame(trades)
+    metrics = compute_metrics(eq, tr, df, cfg.initial_capital)
+    if skipped[0]:
+        metrics["skipped_entries_too_small"] = skipped[0]
     return {
         "config": asdict(cfg),
         "equity": eq,
         "trades": tr,
-        "metrics": compute_metrics(eq, tr, df, cfg.initial_capital),
+        "metrics": metrics,
     }

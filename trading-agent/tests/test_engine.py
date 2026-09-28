@@ -68,3 +68,13 @@ def test_optimizers():
     res = backtest_strategy(df, "donchian_breakout")
     mc = monte_carlo(res["trades"], 10_000, runs=200)
     assert mc["return_pct_p5"] <= mc["return_pct_median"] <= mc["return_pct_p95"]
+
+
+def test_futures_contract_sizing_and_pnl():
+    df = flat_df([3300, 3300, 3310, 3320, 3320])
+    sig = pd.Series([1, np.nan, np.nan, np.nan, np.nan], index=df.index)
+    cfg = BacktestConfig(point_value=10.0, whole_contracts=True, stop_atr=None, max_leverage=50,
+                         commission_pct=0, slippage_pct=0, commission_per_contract=1.0)
+    t = run_backtest(df, sig, cfg)["trades"].iloc[0]
+    assert t.qty == np.floor(10_000 * 50 / (3300 * 10))
+    assert t.pnl == pytest.approx(t.qty * (20 * 10 - 2.0))  # $20 move x $10/point, minus fees

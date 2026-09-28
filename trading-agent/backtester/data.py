@@ -19,9 +19,9 @@ def _normalize(df: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"data is missing columns: {missing}")
     df = df[REQUIRED].astype(float).dropna()
-    df.index = pd.to_datetime(df.index)
-    if df.index.tz is not None:
-        df.index = df.index.tz_localize(None)
+    df.index = pd.to_datetime(df.index, utc=None)
+    if df.index.tz is not None:  # keep wall-clock time in New York, the reference for US futures sessions
+        df.index = df.index.tz_convert("America/New_York").tz_localize(None)
     return df.sort_index()
 
 
@@ -35,6 +35,8 @@ def load_csv(path: str) -> pd.DataFrame:
             break
     else:
         raw = raw.set_index(raw.columns[0])
+    if pd.api.types.is_numeric_dtype(raw.index):  # unix timestamps (e.g. TradingView export)
+        raw.index = pd.to_datetime(raw.index, unit="s", utc=True)
     return _normalize(raw)
 
 

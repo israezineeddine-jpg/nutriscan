@@ -47,6 +47,23 @@ python cli.py optimize rsi2_pullback --source SPY --period 10y --walk-forward
 python cli.py run custom --params '{"long_entry": "close > ema_200 and rsi_2 < 10", "exit_rule": "close > sma_5"}'
 ```
 
+## Gold futures (GC / MGC), 5-minute bars
+
+`gold_gc.py` compares the intraday strategies on COMEX gold with whole-contract sizing,
+per-contract commission, 1-tick slippage and a 1:1 reward:risk by default.
+
+```bash
+python gold_gc.py --csv data/GC_5m.csv                 # MGC, $10,000, 1% risk, 1:1
+python gold_gc.py --csv data/GC_5m.csv --contract GC   # full contract ($100 per $1 move)
+python gold_gc.py --csv data/GC_5m.csv --rr 2 --stop-atr 2
+python gold_gc.py --synthetic                          # pipeline check only, no real data
+```
+
+The CSV needs a time column (ISO dates in New York time, or unix timestamps as in a
+TradingView export) plus open, high, low, close, volume. Sessions run 18:00 -> 17:00 ET and
+positions are closed at 17:00 ET unless `--hold-overnight` is set. With $10,000 and 1% risk,
+one full GC contract is usually too large for an ATR stop on 5m bars, so MGC is the default.
+
 ## Strategies
 
 | Style | Strategy | Idea | Default risk engine |
