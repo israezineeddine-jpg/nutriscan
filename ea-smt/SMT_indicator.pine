@@ -1,0 +1,409 @@
+//@version=6
+indicator("SMT — ENTRY SL TP", overlay=true, max_bars_back=5000, max_lines_count=500, max_labels_count=500)
+
+// ================= SETTINGS =================
+
+silverSymbol = input.symbol("OANDA:XAGUSD", "Silver symbol")
+
+leftBars = input.int(2, "Pivot left bars", minval=1, maxval=50)
+rightBars = input.int(2, "Pivot right bars", minval=1, maxval=50)
+
+pairTolerance = input.int(3, "Pair tolerance — M5 intervals", minval=0, maxval=20)
+maxGap = input.int(200, "Maximum swing gap", minval=3, maxval=1000)
+historyBars = input.int(10000, "History bars", minval=100, maxval=20000)
+
+bufferPoints = input.float(10.0, "SL buffer — points", minval=0.0)
+pointSizeInput = input.float(0.0, "Point size — 0 = chart tick", minval=0.0)
+
+lineLength = input.int(20, "Entry / SL / TP line length", minval=1, maxval=200)
+keepSignals = input.int(100, "Historical signals to keep", minval=1, maxval=120)
+
+enableAlerts = input.bool(true, "Enable alerts")
+showSmallStatus = input.bool(false, "Show small status")
+
+buyColor = input.color(color.lime, "BUY color")
+sellColor = input.color(color.orange, "SELL color")
+
+float pointSize = pointSizeInput > 0 ? pointSizeInput : syminfo.mintick
+float slBuffer = bufferPoints * pointSize
+
+// ================= VALIDATE CHART =================
+
+if barstate.isfirst
+    if not timeframe.isminutes or timeframe.multiplier != 5
+        runtime.error("Use this indicator on a Gold 5-minute chart.")
+
+    if not chart.is_standard
+        runtime.error("Use standard candles.")
+
+// ================= SILVER DATA =================
+
+[silverTime, silverHigh, silverLow] = request.security(silverSymbol, "5", [time, high, low], gaps=barmerge.gaps_on, lookahead=barmerge.lookahead_off, ignore_invalid_symbol=true)
+
+bool aligned = not na(silverTime) and silverTime == time and not na(silverHigh) and not na(silverLow)
+
+// ================= PIVOTS =================
+
+// Both instruments use the same chart timeline.
+// Equal highs/lows are rejected.
+
+int pivotTime = time[rightBars]
+int pivotIndex = bar_index - rightBars
+
+float goldLowPivotPrice = low[rightBars]
+float goldHighPivotPrice = high[rightBars]
+float silverLowPivotPrice = silverLow[rightBars]
+float silverHighPivotPrice = silverHigh[rightBars]
+
+bool enoughBars = bar_index >= leftBars + rightBars
+
+bool goldLowPivot = enoughBars and not na(goldLowPivotPrice)
+bool goldHighPivot = enoughBars and not na(goldHighPivotPrice)
+bool silverLowPivot = enoughBars and not na(silverLowPivotPrice)
+bool silverHighPivot = enoughBars and not na(silverHighPivotPrice)
+
+if enoughBars
+    for k = 0 to leftBars + rightBars
+        if na(low[k]) or na(high[k])
+            goldLowPivot := false
+            goldHighPivot := false
+
+        bool silverBarValid = not na(silverTime[k]) and silverTime[k] == time[k] and not na(silverHigh[k]) and not na(silverLow[k])
+
+        if not silverBarValid
+            silverLowPivot := false
+            silverHighPivot := false
+
+        if k != rightBars
+            if low[k] <= goldLowPivotPrice
+                goldLowPivot := false
+
+            if high[k] >= goldHighPivotPrice
+                goldHighPivot := false
+
+            if silverBarValid
+                if silverLow[k] <= silverLowPivotPrice
+                    silverLowPivot := false
+
+                if silverHigh[k] >= silverHighPivotPrice
+                    silverHighPivot := false
+
+// ================= PENDING PIVOTS =================
+
+// 0 = Gold low
+// 1 = Silver low
+// 2 = Gold high
+// 3 = Silver high
+
+var array<int> pendingTime = array.new_int(4, na)
+var array<int> pendingIndex = array.new_int(4, na)
+var array<float> pendingPrice = array.new_float(4, na)
+
+// Previous matched pair:
+// 0 = lows
+// 1 = highs
+
+var array<int> previousGoldTime = array.new_int(2, na)
+var array<int> previousSilverTime = array.new_int(2, na)
+var array<int> previousGoldIndex = array.new_int(2, na)
+var array<int> previousSilverIndex = array.new_int(2, na)
+var array<float> previousGoldPrice = array.new_float(2, na)
+var array<float> previousSilverPrice = array.new_float(2, na)
+
+// ================= SETUPS =================
+
+type TradeSetup
+    int direction
+    int firstTime
+    int secondTime
+    float firstPrice
+    float secondPrice
+    float entry
+    float stop
+    float firstGold
+    float firstSilver
+    bool goldSwept
+    bool silverSwept
+
+var array<TradeSetup> setups = array.new<TradeSetup>()
+
+var array<line> drawings = array.new<line>()
+var array<label> labels = array.new<label>()
+
+var int matchedPairs = 0
+var int smtCount = 0
+var int signalCount = 0
+var int missingCount = 0
+
+// ================= DRAW ENTRY / SL / TP =================
+
+drawTrade(TradeSetup trade, float entryPrice, float targetPrice, int signalTime) =>
+    color tradeColor = trade.direction > 0 ? buyColor : sellColor
+    string side = trade.direction > 0 ? "BUY" : "SELL"
+
+    int endTime = signalTime + lineLength * 300000
+
+    // Four lines and four labels per signal.
+    while array.size(drawings) >= keepSignals * 4
+        for j = 0 to 3
+            line.delete(array.shift(drawings))
+            label.delete(array.shift(labels))
+
+    // SMT connection.
+    array.push(drawings, line.new(trade.firstTime, trade.firstPrice, trade.secondTime, trade.secondPrice, xloc=xloc.bar_time, color=tradeColor, width=2))
+
+    // Entry.
+    array.push(drawings, line.new(signalTime, entryPrice, endTime, entryPrice, xloc=xloc.bar_time, color=color.yellow, width=2))
+
+    // Stop loss.
+    array.push(drawings, line.new(signalTime, trade.stop, endTime, trade.stop, xloc=xloc.bar_time, color=color.red, width=2))
+
+    // Take profit.
+    array.push(drawings, line.new(signalTime, targetPrice, endTime, targetPrice, xloc=xloc.bar_time, color=color.aqua, width=2))
+
+    string arrowStyle = trade.direction > 0 ? label.style_label_up : label.style_label_down
+
+    array.push(labels, label.new(signalTime, entryPrice, side, xloc=xloc.bar_time, style=arrowStyle, color=tradeColor, textcolor=color.black, size=size.small))
+
+    array.push(labels, label.new(endTime, entryPrice, "ENTRY ~ " + str.tostring(entryPrice, format.mintick), xloc=xloc.bar_time, style=label.style_label_left, color=color.yellow, textcolor=color.black, size=size.small))
+
+    array.push(labels, label.new(endTime, trade.stop, "SL " + str.tostring(trade.stop, format.mintick), xloc=xloc.bar_time, style=label.style_label_left, color=color.red, textcolor=color.white, size=size.small))
+
+    array.push(labels, label.new(endTime, targetPrice, "TP " + str.tostring(targetPrice, format.mintick), xloc=xloc.bar_time, style=label.style_label_left, color=color.aqua, textcolor=color.black, size=size.small))
+
+    true
+
+// ================= MAIN =================
+
+bool buySignal = false
+bool sellSignal = false
+bool inHistory = bar_index >= last_bar_index - historyBars
+
+if barstate.isconfirmed and inHistory
+    if not aligned
+        missingCount += 1
+        array.clear(setups)
+
+        array.fill(pendingTime, na)
+        array.fill(pendingIndex, na)
+        array.fill(pendingPrice, na)
+
+        array.fill(previousGoldTime, na)
+        array.fill(previousSilverTime, na)
+        array.fill(previousGoldIndex, na)
+        array.fill(previousSilverIndex, na)
+        array.fill(previousGoldPrice, na)
+        array.fill(previousSilverPrice, na)
+
+    else
+        // ---------- PROCESS EXISTING SETUPS ----------
+
+        int n = 0
+
+        while n < array.size(setups)
+            TradeSetup trade = array.get(setups, n)
+
+            bool broke = trade.direction > 0 ? high > trade.entry : low < trade.entry
+
+            bool newGoldSweep = trade.direction > 0 ? low < trade.firstGold : high > trade.firstGold
+            bool newSilverSweep = trade.direction > 0 ? silverLow < trade.firstSilver : silverHigh > trade.firstSilver
+
+            trade.goldSwept := trade.goldSwept or newGoldSweep
+            trade.silverSwept := trade.silverSwept or newSilverSweep
+
+            bool stopped = trade.direction > 0 ? low <= trade.stop : high >= trade.stop
+            bool invalid = stopped or (trade.goldSwept and trade.silverSwept)
+
+            if invalid
+                // Reject ambiguous entry/invalidation candles.
+                array.remove(setups, n)
+
+            else if broke
+                // Estimated breakout fill, adjusted for opening gaps.
+                float entryPrice = trade.direction > 0 ? math.max(open, trade.entry) : math.min(open, trade.entry)
+                float risk = trade.direction * (entryPrice - trade.stop)
+
+                if risk > 0
+                    float targetPrice = math.round_to_mintick(entryPrice + trade.direction * risk)
+
+                    drawTrade(trade, entryPrice, targetPrice, time)
+
+                    signalCount += 1
+                    buySignal := buySignal or trade.direction > 0
+                    sellSignal := sellSignal or trade.direction < 0
+
+                    if enableAlerts and barstate.isrealtime
+                        string side = trade.direction > 0 ? "BUY" : "SELL"
+                        string message = syminfo.tickerid + " SMT " + side
+                        message := message + " | Confirmed at bar close"
+                        message := message + " | Estimated entry " + str.tostring(entryPrice, format.mintick)
+                        message := message + " | SL " + str.tostring(trade.stop, format.mintick)
+                        message := message + " | TP " + str.tostring(targetPrice, format.mintick)
+
+                        alert(message, alert.freq_all)
+
+                array.remove(setups, n)
+
+            else
+                array.set(setups, n, trade)
+                n += 1
+
+        // ---------- STORE NEW PIVOTS ----------
+
+        if goldLowPivot
+            array.set(pendingTime, 0, pivotTime)
+            array.set(pendingIndex, 0, pivotIndex)
+            array.set(pendingPrice, 0, goldLowPivotPrice)
+
+        if silverLowPivot
+            array.set(pendingTime, 1, pivotTime)
+            array.set(pendingIndex, 1, pivotIndex)
+            array.set(pendingPrice, 1, silverLowPivotPrice)
+
+        if goldHighPivot
+            array.set(pendingTime, 2, pivotTime)
+            array.set(pendingIndex, 2, pivotIndex)
+            array.set(pendingPrice, 2, goldHighPivotPrice)
+
+        if silverHighPivot
+            array.set(pendingTime, 3, pivotTime)
+            array.set(pendingIndex, 3, pivotIndex)
+            array.set(pendingPrice, 3, silverHighPivotPrice)
+
+        // ---------- MATCH LOWS AND HIGHS ----------
+
+        for sideIndex = 0 to 1
+            int goldSlot = sideIndex * 2
+            int silverSlot = goldSlot + 1
+            int direction = sideIndex == 0 ? 1 : -1
+
+            int gt = array.get(pendingTime, goldSlot)
+            int st = array.get(pendingTime, silverSlot)
+
+            if not na(gt) and not na(st)
+                bool closeEnough = math.abs(gt - st) <= pairTolerance * 300000
+
+                if closeEnough
+                    matchedPairs += 1
+
+                    int gi = array.get(pendingIndex, goldSlot)
+                    int si = array.get(pendingIndex, silverSlot)
+
+                    float gp = array.get(pendingPrice, goldSlot)
+                    float sp = array.get(pendingPrice, silverSlot)
+
+                    int oldGT = array.get(previousGoldTime, sideIndex)
+                    int oldST = array.get(previousSilverTime, sideIndex)
+                    int oldGI = array.get(previousGoldIndex, sideIndex)
+
+                    float oldGP = array.get(previousGoldPrice, sideIndex)
+                    float oldSP = array.get(previousSilverPrice, sideIndex)
+
+                    bool ordered = not na(oldGT) and not na(oldST) and gt > oldGT and st > oldST
+
+                    if ordered
+                        int gap = gi - oldGI
+                        int olderOffset = bar_index - oldGI
+                        int newerOffset = bar_index - gi
+                        int earliestOffset = bar_index - math.min(gi, si)
+
+                        bool gapValid = gap >= 2 and gap <= maxGap and olderOffset < 5000 and earliestOffset < 5000
+                        bool divergence = (gp > oldGP and sp < oldSP) or (gp < oldGP and sp > oldSP)
+
+                        if gapValid and divergence
+                            smtCount += 1
+
+                            float entryLevel = na
+
+                            // Extreme strictly between Gold pivot candles.
+                            for k = newerOffset + 1 to olderOffset - 1
+                                float value = direction > 0 ? high[k] : low[k]
+
+                                if na(entryLevel)
+                                    entryLevel := value
+                                else
+                                    entryLevel := direction > 0 ? math.max(entryLevel, value) : math.min(entryLevel, value)
+
+                            float rawStop = direction > 0 ? math.min(oldGP, gp) - slBuffer : math.max(oldGP, gp) + slBuffer
+                            float stopLevel = math.round_to_mintick(rawStop)
+
+                            bool gs = direction > 0 ? gp < oldGP : gp > oldGP
+                            bool ss = direction > 0 ? sp < oldSP : sp > oldSP
+
+                            bool valid = not na(entryLevel) and direction * (entryLevel - stopLevel) > 0
+
+                            // Reject breaks/invalidation before confirmation.
+                            for k = 0 to earliestOffset
+                                bool comparisonAvailable = not na(silverTime[k]) and silverTime[k] == time[k] and not na(silverHigh[k]) and not na(silverLow[k])
+
+                                if not comparisonAvailable
+                                    valid := false
+
+                                else if direction > 0
+                                    gs := gs or low[k] < oldGP
+                                    ss := ss or silverLow[k] < oldSP
+
+                                    if high[k] > entryLevel or low[k] < rawStop
+                                        valid := false
+
+                                    if k < newerOffset and low[k] <= rawStop
+                                        valid := false
+
+                                else
+                                    gs := gs or high[k] > oldGP
+                                    ss := ss or silverHigh[k] > oldSP
+
+                                    if low[k] < entryLevel or high[k] > rawStop
+                                        valid := false
+
+                                    if k < newerOffset and high[k] >= rawStop
+                                        valid := false
+
+                            if valid and not (gs and ss)
+                                TradeSetup newSetup = TradeSetup.new(direction, oldGT, gt, oldGP, gp, entryLevel, stopLevel, oldGP, oldSP, gs, ss)
+                                array.push(setups, newSetup)
+
+                    // Store the latest matched pair.
+                    array.set(previousGoldTime, sideIndex, gt)
+                    array.set(previousSilverTime, sideIndex, st)
+                    array.set(previousGoldIndex, sideIndex, gi)
+                    array.set(previousSilverIndex, sideIndex, si)
+                    array.set(previousGoldPrice, sideIndex, gp)
+                    array.set(previousSilverPrice, sideIndex, sp)
+
+                    // Consume both matched pivots.
+                    array.set(pendingTime, goldSlot, na)
+                    array.set(pendingTime, silverSlot, na)
+
+                else
+                    // Discard the older unmatched pivot.
+                    if gt < st
+                        array.set(pendingTime, goldSlot, na)
+                    else
+                        array.set(pendingTime, silverSlot, na)
+
+// ================= ALERTS =================
+
+alertcondition(buySignal, "SMT BUY", "SMT BUY confirmed on {{ticker}} M5. Estimated Entry, SL and TP are drawn on the chart.")
+alertcondition(sellSignal, "SMT SELL", "SMT SELL confirmed on {{ticker}} M5. Estimated Entry, SL and TP are drawn on the chart.")
+
+// ================= DATA WINDOW =================
+
+plot(matchedPairs, "Matched pairs", display=display.data_window)
+plot(smtCount, "SMT divergences", display=display.data_window)
+plot(signalCount, "Confirmed signals", display=display.data_window)
+
+// ================= OPTIONAL STATUS =================
+
+var table status = table.new(position.bottom_right, 1, 1)
+
+if barstate.islast
+    if showSmallStatus
+        string statusMessage = "Pairs " + str.tostring(matchedPairs)
+        statusMessage := statusMessage + " | SMT " + str.tostring(smtCount)
+        statusMessage := statusMessage + " | Signals " + str.tostring(signalCount)
+        statusMessage := statusMessage + " | Missing " + str.tostring(missingCount)
+
+        table.cell(status, 0, 0, statusMessage, text_color=color.white, bgcolor=color.new(color.black, 20))
+    else
+        table.clear(status, 0, 0, 0, 0)
