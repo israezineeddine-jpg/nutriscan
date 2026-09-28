@@ -25,7 +25,7 @@ Tu aides un trader basé au **Maroc** à choisir le challenge de prop firm le pl
    python3 propfirm_agent.py classement --par global    # ou facile | rapide | retrait
    python3 propfirm_agent.py simuler --winrate 0.45 --rr 2 --risque 0.5 --trades-jour 2 --budget 600
    ```
-5. **Répondre en français** avec :
+5. **Répondre toujours en arabe** (même si la question est en français) avec :
    - le meilleur challenge **facile**, **rapide** et **retrait**, puis la recommandation globale ;
    - P(retrait), jours médians et gain espéré issus de la simulation ;
    - les pièges : règle de consistance, drawdown trailing, restrictions sur les news et le week-end ;
