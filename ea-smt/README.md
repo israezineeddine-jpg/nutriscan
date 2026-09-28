@@ -36,7 +36,7 @@
 ## التركيب
 1. فـ MT5: **File → Open Data Folder → MQL5 → Experts**، وحط فيه `SMT_Gold_Silver_EA.mq5`.
 2. حل الملف فـ **MetaEditor** ودير **Compile (F7)**.
-3. زيد **XAGUSD** فـ Market Watch. إلا كان الاسم مختلف عند البروكر (مثلاً `XAGUSD.`)، بدّل `InpSilverSymbol`.
+3. زيد **XAGUSD** فـ Market Watch. الـ EA كيلقى السمية ديال الفضة بوحدو من السمية ديال الذهب (مثلاً `XAUUSDm` → `XAGUSDm`). إلا مالقاهاش، كتبها يدوياً فـ `InpSilverSymbol`.
 4. حط الـ EA على شارت **XAUUSD M5** وشعّل **Algo Trading**.
 5. الـ log كيتسجل فـ `MQL5/Files/SMT_EA_log.csv`: الثمن المطلوب، الثمن اللي تنفذ بيه، والسبريد.
 

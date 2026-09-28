@@ -19,7 +19,7 @@ enum ENUM_SMT_ENTRY_MODE
 //================= INPUTS =================
 
 input string InpSectionSmt     = "===== SMT =====";        // -----
-input string InpSilverSymbol   = "XAGUSD"; // Silver symbol (exact name at your broker)
+input string InpSilverSymbol   = ""; // Silver symbol (empty = auto, e.g. XAUUSDm -> XAGUSDm)
 input int    InpLeftBars       = 2;        // Pivot left bars
 input int    InpRightBars      = 2;        // Pivot right bars
 input int    InpPairTolerance  = 3;        // Pair tolerance — M5 intervals
@@ -105,6 +105,7 @@ bool     g_totalHalt     = false;
 
 datetime g_newsTimes[];
 
+string   g_silver        = "";    // resolved Silver symbol
 int      g_signalCount   = 0;
 int      g_objCount      = 0;
 
@@ -141,11 +142,11 @@ bool SilverAt(const int goldShift, double &h, double &l)
    datetime t = iTime(_Symbol, PERIOD_M5, goldShift);
    if(t == 0)
       return false;
-   int ss = iBarShift(InpSilverSymbol, PERIOD_M5, t, true);
+   int ss = iBarShift(g_silver, PERIOD_M5, t, true);
    if(ss < 0)
       return false;
-   h = iHigh(InpSilverSymbol, PERIOD_M5, ss);
-   l = iLow(InpSilverSymbol, PERIOD_M5, ss);
+   h = iHigh(g_silver, PERIOD_M5, ss);
+   l = iLow(g_silver, PERIOD_M5, ss);
    return (h > 0.0 && l > 0.0);
   }
 
@@ -282,6 +283,38 @@ int TradesToday()
          count++;
      }
    return count;
+  }
+
+bool SymbolExists(const string sym)
+  {
+   if(sym == "")
+      return false;
+   ResetLastError();
+   double pt = MarketInfo(sym, MODE_POINT);
+   return (pt > 0.0 && GetLastError() != ERR_UNKNOWN_SYMBOL);
+  }
+
+// Silver symbol: the input if set, otherwise Gold's name with XAU -> XAG
+// (keeps broker prefixes / suffixes such as XAUUSDm -> XAGUSDm).
+string ResolveSilverSymbol()
+  {
+   string candidates[4];
+   candidates[0] = InpSilverSymbol;
+   string swapped = _Symbol;
+   StringReplace(swapped, "XAU", "XAG");
+   candidates[1] = swapped;
+   string swappedLower = _Symbol;
+   StringReplace(swappedLower, "xau", "xag");
+   candidates[2] = swappedLower;
+   candidates[3] = "XAGUSD";
+   for(int i = 0; i < 4; i++)
+     {
+      if(candidates[i] == _Symbol)
+         continue;
+      if(SymbolExists(candidates[i]))
+         return candidates[i];
+     }
+   return "";
   }
 
 //================= RISK GUARDS =================
@@ -912,7 +945,7 @@ void ProcessBar(const int s, const bool live)
 bool SilverReady()
   {
    ResetLastError();
-   int bars = iBars(InpSilverSymbol, PERIOD_M5);
+   int bars = iBars(g_silver, PERIOD_M5);
    int err = GetLastError();
    return (bars > 100 && err != ERR_HISTORY_WILL_UPDATED);
   }
@@ -942,7 +975,13 @@ void Engine()
   {
    if(!g_ready)
      {
-      WarmUp();
+      static datetime warned = 0;
+      if(!WarmUp() && TimeCurrent() - warned > 3600)
+        {
+         warned = TimeCurrent();
+         Print("SMT EA: waiting for history — need ", g_silver, " M5 and ", _Symbol,
+               " M5 bars (download them in the History Center).");
+        }
       return;
      }
 
@@ -954,7 +993,7 @@ void Engine()
       // Wait until Silver has printed the candle after the one we process (max 60 s).
       if(!IsTesting())
         {
-         datetime silverLast = iTime(InpSilverSymbol, PERIOD_M5, 0);
+         datetime silverLast = iTime(g_silver, PERIOD_M5, 0);
          if(silverLast <= lastClosed)
            {
             if(g_waitSince == 0)
@@ -986,15 +1025,19 @@ int OnInit()
   {
    if(_Period != PERIOD_M5)
      {
-      Alert("SMT EA: attach it to a Gold M5 chart.");
+      Print("SMT EA: INIT FAILED — attach it to a Gold M5 chart (current period: ", _Period, " min).");
       return INIT_PARAMETERS_INCORRECT;
      }
-   if(!SymbolSelect(InpSilverSymbol, true))
+   g_silver = ResolveSilverSymbol();
+   if(g_silver == "")
      {
-      Alert("SMT EA: silver symbol not found: ", InpSilverSymbol);
+      Print("SMT EA: INIT FAILED — silver symbol not found. Set InpSilverSymbol to the exact name (e.g. XAGUSDm).");
       return INIT_PARAMETERS_INCORRECT;
      }
-   iBars(InpSilverSymbol, PERIOD_M5); // triggers the Silver history download
+   if(!IsTesting())
+      SymbolSelect(g_silver, true);
+   iBars(g_silver, PERIOD_M5); // triggers the Silver history download
+   Print("SMT EA: using silver symbol ", g_silver);
 
    double pointSize = InpPointSize > 0.0 ? InpPointSize : _Point;
    g_slBuffer = InpBufferPoints * pointSize;
