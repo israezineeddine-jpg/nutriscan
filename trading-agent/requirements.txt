@@ -1,0 +1,5 @@
+pandas>=2.0
+numpy>=1.24
+anthropic>=0.116
+yfinance>=0.2  # optional: download real market data
+pytest>=7

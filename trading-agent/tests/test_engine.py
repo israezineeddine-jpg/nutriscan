@@ -1,0 +1,70 @@
+import numpy as np
+import pandas as pd
+import pytest
+
+from backtester import BacktestConfig, STRATEGIES, run_backtest, synthetic_data
+from backtester.optimize import backtest_strategy, grid_search, monte_carlo, walk_forward
+from backtester.strategies import custom_rule_signals
+
+
+def flat_df(prices):
+    idx = pd.bdate_range("2024-01-01", periods=len(prices))
+    p = np.asarray(prices, float)
+    return pd.DataFrame({"open": p, "high": p + 0.5, "low": p - 0.5, "close": p, "volume": 1000.0}, index=idx)
+
+
+def test_no_lookahead_entry_at_next_open():
+    df = flat_df([100, 101, 102, 103, 104])
+    sig = pd.Series([1, np.nan, np.nan, np.nan, np.nan], index=df.index)
+    cfg = BacktestConfig(commission_pct=0, slippage_pct=0, stop_atr=None, max_leverage=1.0)
+    res = run_backtest(df, sig, cfg)
+    t = res["trades"].iloc[0]
+    assert t.entry_time == df.index[1] and t.entry == 101
+    assert t.exit == 104 and t.exit_reason == "end"
+    assert res["metrics"]["final_equity"] == pytest.approx(10_000 * 104 / 101, rel=1e-6)
+
+
+def test_stop_loss_hits_and_limits_risk():
+    df = flat_df([100, 100, 100, 90, 90])
+    sig = pd.Series([1, np.nan, np.nan, np.nan, np.nan], index=df.index)
+    cfg = BacktestConfig(commission_pct=0, slippage_pct=0, stop_atr=2.0, risk_per_trade=0.01)
+    res = run_backtest(df, sig, cfg)
+    t = res["trades"].iloc[0]
+    assert t.exit_reason == "stop"
+    # gapped through the stop -> filled at the open, loss larger than 1R
+    assert t.r_multiple < -1
+
+
+def test_flatten_eod_intraday():
+    df = synthetic_data(bars=78 * 3, interval="5m")
+    sig = pd.Series(1.0, index=df.index)
+    res = run_backtest(df, sig, BacktestConfig(flatten_eod=True, stop_atr=None))
+    assert (res["trades"].exit_reason.isin(["eod", "end"])).all()
+    assert (res["trades"].entry_time.dt.date == res["trades"].exit_time.dt.date).all()
+
+
+@pytest.mark.parametrize("name", sorted(STRATEGIES))
+def test_every_strategy_runs(name):
+    style = STRATEGIES[name].style
+    df = synthetic_data(bars=1500, interval="1d" if style == "swing" else "5m")
+    m = backtest_strategy(df, name)["metrics"]
+    assert m["bars"] == 1500 and np.isfinite(m["final_equity"])
+
+
+def test_custom_rules_and_injection_guard():
+    df = synthetic_data(bars=500)
+    sig = custom_rule_signals(df, "close > ema_50 and rsi_14 < 40", exit_rule="rsi_14 > 60")
+    assert set(sig.dropna().unique()) <= {0.0, 1.0}
+    with pytest.raises(ValueError):
+        custom_rule_signals(df, "close.__class__")
+
+
+def test_optimizers():
+    df = synthetic_data(bars=1200)
+    top = grid_search(df, "sma_crossover", {"fast": [10, 20], "slow": [50, 100]}, min_trades=1, top=2)
+    assert len(top) == 2 and top[0]["score"] >= top[1]["score"]
+    wf = walk_forward(df, "sma_crossover", {"fast": [10, 20], "slow": [50]}, folds=3, min_trades=1)
+    assert len(wf["folds"]) == 3
+    res = backtest_strategy(df, "donchian_breakout")
+    mc = monte_carlo(res["trades"], 10_000, runs=200)
+    assert mc["return_pct_p5"] <= mc["return_pct_median"] <= mc["return_pct_p95"]
