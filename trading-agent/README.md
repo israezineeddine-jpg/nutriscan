@@ -59,6 +59,9 @@ python gold_gc.py --csv data/GC_5m.csv --rr 2 --stop-atr 2
 python gold_gc.py --synthetic                          # pipeline check only, no real data
 ```
 
+Free data: `python dukascopy.py XAUUSD 2025-01-01 2026-09-01 -o data/XAUUSD_5m.csv` downloads
+Dukascopy spot-gold 5m bars (a close proxy for GC) in the format below.
+
 The CSV needs a time column (ISO dates in New York time, or unix timestamps as in a
 TradingView export) plus open, high, low, close, volume. Sessions run 18:00 -> 17:00 ET and
 positions are closed at 17:00 ET unless `--hold-overnight` is set. With $10,000 and 1% risk,

@@ -78,3 +78,19 @@ def test_futures_contract_sizing_and_pnl():
     t = run_backtest(df, sig, cfg)["trades"].iloc[0]
     assert t.qty == np.floor(10_000 * 50 / (3300 * 10))
     assert t.pnl == pytest.approx(t.qty * (20 * 10 - 2.0))  # $20 move x $10/point, minus fees
+
+
+def test_dukascopy_decode():
+    import lzma
+    import struct
+
+    from dukascopy import decode_day
+
+    rec = struct.Struct(">5if")
+    raw = lzma.compress(rec.pack(0, 3300000, 3301500, 3299000, 3302000, 1.5)
+                        + rec.pack(60, 3301500, 3301500, 3301500, 3301500, 0.0), format=lzma.FORMAT_ALONE)
+    df = decode_day(raw, pd.Timestamp("2026-07-01"), 1000)
+    assert len(df) == 1  # zero-volume filler minute dropped
+    row = df.iloc[0]
+    assert (row.open, row.high, row.low, row.close) == (3300.0, 3302.0, 3299.0, 3301.5)
+    assert df.index[0] == pd.Timestamp("2026-07-01 00:00")
