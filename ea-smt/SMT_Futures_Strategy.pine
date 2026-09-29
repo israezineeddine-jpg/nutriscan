@@ -1,9 +1,5 @@
 //@version=6
-strategy("SMT Futures — Gold/Silver", overlay=true, max_bars_back=5000, max_lines_count=500, max_labels_count=500,
-     initial_capital=50000, currency=currency.USD, pyramiding=0,
-     default_qty_type=strategy.fixed, default_qty_value=1,
-     commission_type=strategy.commission.cash_per_contract, commission_value=1.5, slippage=1,
-     margin_long=10, margin_short=10, calc_on_every_tick=false, process_orders_on_close=false)
+strategy("SMT Futures — Gold/Silver", overlay=true, max_bars_back=5000, max_lines_count=500, max_labels_count=500, initial_capital=50000, currency=currency.USD, pyramiding=0, default_qty_type=strategy.fixed, default_qty_value=1, commission_type=strategy.commission.cash_per_contract, commission_value=1.5, slippage=1, margin_long=10, margin_short=10, calc_on_every_tick=false, process_orders_on_close=false)
 
 // Strategy version of the "SMT — ENTRY SL TP" indicator for CME futures.
 // Chart: Gold futures M5 (COMEX:MGC1! or COMEX:GC1!). Compared symbol: Silver futures (COMEX:SI1!).
