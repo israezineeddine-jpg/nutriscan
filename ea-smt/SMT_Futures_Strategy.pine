@@ -1,5 +1,5 @@
 //@version=6
-strategy("SMT Futures — Gold/Silver", overlay=true, max_bars_back=5000, initial_capital=50000, pyramiding=0, commission_type=strategy.commission.cash_per_contract, commission_value=1.5, slippage=1, margin_long=10, margin_short=10)
+strategy("SMT Futures — Gold/Silver", overlay=true, max_bars_back=5000, initial_capital=50000, currency=currency.USD, pyramiding=0, commission_type=strategy.commission.cash_per_contract, commission_value=1.5, slippage=1, margin_long=10, margin_short=10)
 
 // Strategy version of the "SMT — ENTRY SL TP" indicator for CME futures.
 // Chart: Gold futures M5 (COMEX:MGC1! or COMEX:GC1!). Compared symbol: Silver futures (COMEX:SI1!).
@@ -18,7 +18,7 @@ maxGap = input.int(200, "Maximum swing gap", minval=3, maxval=1000, group="SMT")
 bufferTicks = input.int(1, "SL buffer — ticks", minval=0, group="SMT")
 
 rr = input.float(1.0, "Take profit — R multiple", minval=0.1, step=0.1, group="Trade")
-riskPerTrade = input.float(250.0, "Risk per trade — $", minval=1.0, group="Trade")
+riskPerTrade = input.float(250.0, "Risk per trade — account currency (USD)", minval=1.0, group="Trade")
 maxContracts = input.int(5, "Max contracts", minval=1, group="Trade")
 
 tradeSession = input.session("0200-1545", "Trading window (New York time)", group="Session")
@@ -343,7 +343,8 @@ if barstate.isconfirmed
 
         if canPlace and not s.placed
             float riskPoints = math.abs(s.entry - s.stop)
-            float contractRisk = riskPoints * syminfo.pointvalue
+            // Risk of one contract, converted from the symbol currency (e.g. INR on MCX) to the account currency.
+            float contractRisk = strategy.convert_to_account(riskPoints * syminfo.pointvalue)
             int qty = contractRisk > 0 ? math.min(maxContracts, int(math.floor(riskPerTrade / contractRisk))) : 0
             bool ahead = s.direction > 0 ? close < s.entry : close > s.entry
 
