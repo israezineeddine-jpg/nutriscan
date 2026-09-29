@@ -1,0 +1,66 @@
+//@version=5
+// NY Opening Range Breakout for COMEX gold futures (MGC1! / GC1!), 5-minute chart.
+// Opening range 09:30-10:00 New York time, one breakout per day with stop orders on both sides,
+// stop-loss at the opposite side of the range, take-profit at reward:risk x range, flat at the session end.
+strategy("GC NY Opening Range Breakout", overlay = true, initial_capital = 10000,
+     default_qty_type = strategy.fixed, default_qty_value = 1,
+     commission_type = strategy.commission.cash_per_contract, commission_value = 1.0,
+     slippage = 1, calc_on_every_tick = false)
+
+tz          = "America/New_York"
+orSession   = input.session("0930-1000", "Opening range (New York time)")
+tradeWindow = input.session("1000-1555", "Trading window (New York time)")
+rr          = input.float(1.0, "Reward : Risk", minval = 0.25, step = 0.25)
+riskPct     = input.float(2.0, "Risk % of equity per trade", minval = 0.1, step = 0.1)
+maxTrades   = input.int(1, "Max trades per day", minval = 1)
+minRange    = input.float(0.0, "Min range size ($, 0 = off)", minval = 0)
+maxRange    = input.float(0.0, "Max range size ($, 0 = off)", minval = 0)
+allowLong   = input.bool(true, "Allow longs")
+allowShort  = input.bool(true, "Allow shorts")
+
+inOR    = not na(time(timeframe.period, orSession, tz))
+inTrade = not na(time(timeframe.period, tradeWindow, tz))
+
+var float orH = na
+var float orL = na
+var int tradesToday = 0
+
+// build the opening range
+if inOR and not inOR[1]
+    orH := high
+    orL := low
+    tradesToday := 0
+else if inOR
+    orH := math.max(orH, high)
+    orL := math.min(orL, low)
+
+// count entries
+if strategy.position_size != 0 and strategy.position_size[1] == 0
+    tradesToday += 1
+
+rangeSize = orH - orL
+rangeOk   = rangeSize > 0 and (minRange == 0 or rangeSize >= minRange) and (maxRange == 0 or rangeSize <= maxRange)
+riskCash  = strategy.equity * riskPct / 100
+qty       = rangeSize > 0 ? math.floor(riskCash / (rangeSize * syminfo.pointvalue)) : 0
+canTrade  = inTrade and not inOR and rangeOk and qty >= 1 and tradesToday < maxTrades and strategy.position_size == 0
+
+if canTrade
+    if allowLong
+        strategy.entry("Long", strategy.long, qty = qty, stop = orH, oca_name = "ORB", oca_type = strategy.oca.cancel)
+    if allowShort
+        strategy.entry("Short", strategy.short, qty = qty, stop = orL, oca_name = "ORB", oca_type = strategy.oca.cancel)
+else
+    strategy.cancel("Long")
+    strategy.cancel("Short")
+
+strategy.exit("XL", "Long",  stop = orL, limit = orH + rr * rangeSize)
+strategy.exit("XS", "Short", stop = orH, limit = orL - rr * rangeSize)
+
+// end of the trading window: cancel pending orders and close any open position
+if inTrade[1] and not inTrade
+    strategy.cancel_all()
+    strategy.close_all(comment = "EOD")
+
+plot(inTrade or inOR ? orH : na, "OR high", color = color.green, style = plot.style_linebr, linewidth = 2)
+plot(inTrade or inOR ? orL : na, "OR low",  color = color.red,   style = plot.style_linebr, linewidth = 2)
+bgcolor(inOR ? color.new(color.yellow, 85) : na)
