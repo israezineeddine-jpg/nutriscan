@@ -1,5 +1,5 @@
 //@version=6
-strategy("SMT Futures — Gold/Silver", overlay=true, max_bars_back=5000, max_lines_count=500, max_labels_count=500, initial_capital=50000, currency=currency.USD, pyramiding=0, default_qty_type=strategy.fixed, default_qty_value=1, commission_type=strategy.commission.cash_per_contract, commission_value=1.5, slippage=1, margin_long=10, margin_short=10, calc_on_every_tick=false, process_orders_on_close=false)
+strategy("SMT Futures — Gold/Silver", overlay=true, max_bars_back=5000, initial_capital=50000, pyramiding=0, commission_type=strategy.commission.cash_per_contract, commission_value=1.5, slippage=1, margin_long=10, margin_short=10)
 
 // Strategy version of the "SMT — ENTRY SL TP" indicator for CME futures.
 // Chart: Gold futures M5 (COMEX:MGC1! or COMEX:GC1!). Compared symbol: Silver futures (COMEX:SI1!).
@@ -139,39 +139,15 @@ var int orderCount = 0
 var int skippedSize = 0
 var int missingCount = 0
 
-// ================= ORDERS =================
-
-// Places the breakout stop order of a setup.
-// Returns 1 = placed, 0 = level no longer ahead of price, -1 = risk too small for 1 contract.
-placeOrder(TradeSetup s) =>
-    float riskPoints = math.abs(s.entry - s.stop)
-    int qty = riskPoints > 0 ? math.min(maxContracts, math.floor(riskPerTrade / (riskPoints * syminfo.pointvalue))) : 0
-    // Never chase: the level must still be ahead of price.
-    bool ahead = s.direction > 0 ? close < s.entry : close > s.entry
-    int result = qty < 1 ? -1 : ahead ? 1 : 0
-    if result == 1
-        float target = math.round_to_mintick(s.entry + s.direction * rr * riskPoints)
-        strategy.entry(s.id, s.direction > 0 ? strategy.long : strategy.short, qty=qty, stop=s.entry)
-        strategy.exit("X" + s.id, from_entry=s.id, stop=s.stop, limit=target)
-        if enableAlerts and barstate.isrealtime
-            string side = s.direction > 0 ? "BUY STOP" : "SELL STOP"
-            alert(syminfo.ticker + " SMT " + side + " qty " + str.tostring(qty) + " @ " + str.tostring(s.entry, format.mintick) + " | SL " + str.tostring(s.stop, format.mintick) + " | TP " + str.tostring(target, format.mintick), alert.freq_once_per_bar_close)
-    result
-
-cancelOrder(TradeSetup s) =>
-    if s.placed
-        // Only the entry is cancelled: the exit of a filled entry must stay.
-        strategy.cancel(s.id)
-        s.placed := false
-    true
-
 // ================= MAIN =================
 
 if barstate.isconfirmed
     if not aligned
         missingCount += 1
         for s in setups
-            cancelOrder(s)
+            if s.placed
+                strategy.cancel(s.id)
+                s.placed := false
         array.clear(setups)
 
         array.fill(pendingTime, na)
@@ -204,11 +180,12 @@ if barstate.isconfirmed
             bool stopped = trade.direction > 0 ? low <= trade.stop : high >= trade.stop
             bool invalid = stopped or (trade.goldSwept and trade.silverSwept)
 
+            // Broken: its stop order was filled on this bar (if it was placed).
+            // Invalid: the pending entry is cancelled (a filled entry keeps its exit).
             if invalid or broke
-                // Broken: its stop order was filled on this bar (if it was placed).
-                // Invalid: the pending entry is cancelled.
-                if invalid
-                    cancelOrder(trade)
+                if invalid and trade.placed
+                    strategy.cancel(trade.id)
+                    trade.placed := false
                 array.remove(setups, n)
             else
                 n += 1
@@ -325,9 +302,11 @@ if barstate.isconfirmed
                             if valid and not (gs and ss)
                                 setupSeq += 1
                                 string sid = (direction > 0 ? "L" : "S") + str.tostring(setupSeq)
-                                TradeSetup newSetup = TradeSetup.new(direction, oldGT, gt, oldGP, gp, entryLevel, stopLevel, oldGP, oldSP, gs, ss, sid, false)
+                                TradeSetup newSetup = TradeSetup.new(direction, oldGT, gt, oldGP, gp, entryLevel, stopLevel, oldGP, oldSP, gs, ss)
+                                newSetup.id := sid
                                 array.push(setups, newSetup)
-                                line.new(oldGT, oldGP, gt, gp, xloc=xloc.bar_time, color=direction > 0 ? color.lime : color.orange, width=2)
+                                color smtColor = direction > 0 ? color.lime : color.orange
+                                line.new(oldGT, oldGP, gt, gp, xloc=xloc.bar_time, color=smtColor, width=2)
 
                     // Store the latest matched pair.
                     array.set(previousGoldTime, sideIndex, gt)
@@ -349,29 +328,43 @@ if barstate.isconfirmed
                         array.set(pendingTime, silverSlot, na)
 
     // ---------- ORDER MANAGEMENT ----------
-
+    // Outside the window, or while a position is open, no entry order stays
+    // pending (an opposite stop order would reverse the position).
     bool flat = strategy.position_size == 0
+    bool canPlace = inWindow and flat
 
-    if not inWindow
-        // End of day / weekend: no pending orders, and flat if requested.
-        for s in setups
-            cancelOrder(s)
-        if flattenOutside and not flat
-            strategy.close_all(comment="Outside window")
-    else if not flat
-        // One position at a time: an opposite stop order would reverse it.
-        for s in setups
-            cancelOrder(s)
-    else
-        for s in setups
-            if not s.placed
-                int result = placeOrder(s)
-                s.placed := result == 1
-                if result == 1
-                    orderCount += 1
-                else if result == -1 and not s.sizeSkipped
-                    s.sizeSkipped := true
-                    skippedSize += 1
+    if not inWindow and flattenOutside and not flat
+        strategy.close_all(comment="Outside window")
+
+    for s in setups
+        if not canPlace and s.placed
+            strategy.cancel(s.id)
+            s.placed := false
+
+        if canPlace and not s.placed
+            float riskPoints = math.abs(s.entry - s.stop)
+            float contractRisk = riskPoints * syminfo.pointvalue
+            int qty = contractRisk > 0 ? math.min(maxContracts, int(math.floor(riskPerTrade / contractRisk))) : 0
+            bool ahead = s.direction > 0 ? close < s.entry : close > s.entry
+
+            if qty < 1 and not s.sizeSkipped
+                s.sizeSkipped := true
+                skippedSize += 1
+
+            if qty >= 1 and ahead
+                float target = math.round_to_mintick(s.entry + s.direction * rr * riskPoints)
+                strategy.entry(s.id, s.direction > 0 ? strategy.long : strategy.short, qty=qty, stop=s.entry)
+                strategy.exit("X" + s.id, from_entry=s.id, stop=s.stop, limit=target)
+                s.placed := true
+                orderCount += 1
+
+                if enableAlerts and barstate.isrealtime
+                    string msg = syminfo.ticker + " SMT " + (s.direction > 0 ? "BUY STOP" : "SELL STOP")
+                    msg := msg + " qty " + str.tostring(qty)
+                    msg := msg + " @ " + str.tostring(s.entry, format.mintick)
+                    msg := msg + " | SL " + str.tostring(s.stop, format.mintick)
+                    msg := msg + " | TP " + str.tostring(target, format.mintick)
+                    alert(msg, alert.freq_once_per_bar_close)
 
 // ================= DISPLAY =================
 
@@ -393,7 +386,8 @@ var table status = table.new(position.bottom_right, 1, 1)
 
 if barstate.islast
     if showStatus
-        string msg = "SMT " + str.tostring(smtCount) + " | Orders " + str.tostring(orderCount) + " | Skipped (size) " + str.tostring(skippedSize) + " | Missing silver " + str.tostring(missingCount)
+        string msg = "SMT " + str.tostring(smtCount) + " | Orders " + str.tostring(orderCount)
+        msg := msg + " | Skipped (size) " + str.tostring(skippedSize) + " | Missing silver " + str.tostring(missingCount)
         table.cell(status, 0, 0, msg, text_color=color.white, bgcolor=color.new(color.black, 20))
     else
         table.clear(status, 0, 0, 0, 0)
