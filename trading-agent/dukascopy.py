@@ -14,6 +14,7 @@ import argparse
 import lzma
 import struct
 import sys
+import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -38,28 +39,45 @@ def decode_day(raw: bytes, day: pd.Timestamp, scale: float) -> pd.DataFrame:
     return df[df.volume > 0][["open", "high", "low", "close", "volume"]]  # drop flat filler minutes
 
 
-def fetch_day(sym: str, day: pd.Timestamp, scale: float, retries: int = 3) -> pd.DataFrame:
+def fetch_day(sym: str, day: pd.Timestamp, scale: float, cache: Path, retries: int = 6):
+    """Return the day's 1-minute bars; None if the server kept failing (rerun to retry only those days)."""
     url = URL.format(sym=sym, y=day.year, m=day.month - 1, d=day.day)  # month is 0-based in the URL
+    f = cache / f"{sym}_{day:%Y%m%d}.bi5"
+    if f.exists():
+        return decode_day(f.read_bytes(), day, scale)
     for attempt in range(retries):
         try:
             with urllib.request.urlopen(url, timeout=30) as r:
-                return decode_day(r.read(), day, scale)
+                raw = r.read()
+            cache.mkdir(parents=True, exist_ok=True)
+            f.write_bytes(raw)                       # cache raw file (even empty = holiday) so reruns skip it
+            return decode_day(raw, day, scale)
         except urllib.error.HTTPError as e:
             if e.code == 404:
+                cache.mkdir(parents=True, exist_ok=True)
+                f.write_bytes(b"")
                 return pd.DataFrame()
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
             pass
-    raise RuntimeError(f"failed to download {url}")
+        time.sleep(2 ** attempt)                     # 1s, 2s, 4s ... server busy / 503
+    return None
 
 
-def download(sym: str, start: str, end: str, tf: str = "5min", workers: int = 8) -> pd.DataFrame:
+def download(sym: str, start: str, end: str, tf: str = "5min", workers: int = 4,
+             cache_dir: str = "data/.dukascopy_cache") -> pd.DataFrame:
     sym = sym.upper()
     scale = SCALE.get(sym, 100_000)
     days = [d for d in pd.date_range(start, end, freq="D") if d.weekday() != 5]  # no Saturday data
+    cache = Path(cache_dir)
     with ThreadPoolExecutor(workers) as pool:
-        parts = [p for p in pool.map(lambda d: fetch_day(sym, d, scale), days) if len(p)]
+        results = list(pool.map(lambda d: fetch_day(sym, d, scale, cache), days))
+    failed = [d.date() for d, r in zip(days, results) if r is None]
+    if failed:
+        print(f"WARNING: {len(failed)} days failed (server busy). Run the same command again to retry only those: "
+              f"{failed[:5]}{' ...' if len(failed) > 5 else ''}", file=sys.stderr)
+    parts = [r for r in results if r is not None and len(r)]
     if not parts:
-        raise RuntimeError("no data downloaded - check the symbol and dates")
+        raise RuntimeError("no data downloaded - check the symbol, dates and your connection")
     m1 = pd.concat(parts).sort_index()
     bars = m1.resample(tf, label="left", closed="left").agg(
         {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}).dropna()
