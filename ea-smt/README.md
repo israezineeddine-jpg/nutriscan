@@ -118,3 +118,6 @@
 **Alerts:** ملي كيتحط أمر، كيتصيفط alert فيه الاتجاه، العدد، الدخول، الـ SL والـ TP. تقدر تربطو بـ webhook مع شي خدمة ديال التنفيذ الأوتوماتيكي.
 
 **MCX (الهند):** الـ strategy كتخدم حتى على `MCX:GOLD1!`، حيت المخاطرة كتتحول من الروبية للدولار بوحدها. ولكن خاص الفضة تكون من نفس البورصة: **`MCX:SILVER1!`**، باش الشموع يتطابقو فالوقت. الـ prop firms ديال الـ futures كيخدمو غير بـ CME، يعني `COMEX:MGC1!` و`COMEX:SI1!`.
+
+**FundedNext Futures 25K Legacy (مثال ديال الإعدادات):** Max Loss 1,000$ (EOD trailing)، و5 أيام benchmark فيهم +100$ على الأقل قبل كل سحب.
+`initial capital 25000` · `Risk per trade 125` · `Max contracts 30` (micros) · `Max drawdown 1000` · `Daily loss limit 375` · `Stop the day at profit 110` · شارت `COMEX:MGC1!` مع `COMEX:SI1!`.

@@ -27,12 +27,20 @@ flattenOutside = input.bool(true, "Close positions outside the window (end of da
 dailyLossLimit = input.float(1000.0, "Daily loss limit — $ (stops the day)", minval=0.0, group="Prop firm")
 maxDrawdown = input.float(2000.0, "Max drawdown from equity peak — $ (stops the strategy)", minval=0.0, group="Prop firm")
 maxTradesPerDay = input.int(3, "Max trades per day", minval=1, group="Prop firm")
+dailyProfitStop = input.float(0.0, "Stop the day at profit — $ (0 = off, e.g. benchmark day)", minval=0.0, group="Prop firm")
 
 enableAlerts = input.bool(true, "Alerts on order placement", group="Display")
 showStatus = input.bool(true, "Show status table", group="Display")
 
 float slBuffer = bufferTicks * syminfo.mintick
 bool inWindow = not na(time(timeframe.period, tradeSession, "America/New_York"))
+
+// Day P&L (New York calendar day) to stop once the daily profit goal is reached.
+var float dayStartEquity = strategy.initial_capital
+int nyDay = dayofmonth(time, "America/New_York")
+if nyDay != nyDay[1]
+    dayStartEquity := strategy.equity
+bool dayTargetHit = dailyProfitStop > 0 and strategy.equity - dayStartEquity >= dailyProfitStop
 
 // ================= PROP FIRM RISK (built-in) =================
 
@@ -331,7 +339,7 @@ if barstate.isconfirmed
     // Outside the window, or while a position is open, no entry order stays
     // pending (an opposite stop order would reverse the position).
     bool flat = strategy.position_size == 0
-    bool canPlace = inWindow and flat
+    bool canPlace = inWindow and flat and not dayTargetHit
 
     if not inWindow and flattenOutside and not flat
         strategy.close_all(comment="Outside window")
