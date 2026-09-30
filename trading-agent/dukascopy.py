@@ -1,6 +1,7 @@
 """Download free Dukascopy history (e.g. XAUUSD spot gold) and save 5-minute OHLCV bars.
 
     python dukascopy.py XAUUSD 2025-01-01 2026-09-01 --tf 5min -o data/XAUUSD_5m.csv
+    python dukascopy.py XAUUSD 2022-01-01 2026-09-29 --tf all      # M1 M5 M15 M30 H1 H4 D1 W1 MN, one file each
     python gold_gc.py --csv data/XAUUSD_5m.csv
 
 Uses Dukascopy's public daily 1-minute candle files (BID side). Requires network access to
@@ -63,8 +64,14 @@ def fetch_day(sym: str, day: pd.Timestamp, scale: float, cache: Path, retries: i
     return None
 
 
-def download(sym: str, start: str, end: str, tf: str = "5min", workers: int = 4,
-             cache_dir: str = "data/.dukascopy_cache") -> pd.DataFrame:
+TIMEFRAMES = {"1min": "1min", "5min": "5min", "15min": "15min", "30min": "30min", "1h": "1h",
+              "4h": "4h", "1D": "1D", "1W": "W-SUN", "1M": "MS"}
+AGG = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+
+
+def download_m1(sym: str, start: str, end: str, workers: int = 4,
+                cache_dir: str = "data/.dukascopy_cache") -> pd.DataFrame:
+    """All 1-minute bars (UTC, naive index) between start and end."""
     sym = sym.upper()
     scale = SCALE.get(sym, 100_000)
     days = [d for d in pd.date_range(start, end, freq="D") if d.weekday() != 5]  # no Saturday data
@@ -78,12 +85,29 @@ def download(sym: str, start: str, end: str, tf: str = "5min", workers: int = 4,
     parts = [r for r in results if r is not None and len(r)]
     if not parts:
         raise RuntimeError("no data downloaded - check the symbol, dates and your connection")
-    m1 = pd.concat(parts).sort_index()
-    bars = m1.resample(tf, label="left", closed="left").agg(
-        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}).dropna()
-    bars.index = bars.index.tz_localize("UTC").tz_convert("America/New_York").tz_localize(None)
+    return pd.concat(parts).sort_index()
+
+
+def to_bars(m1: pd.DataFrame, tf: str) -> pd.DataFrame:
+    """Resample 1-minute bars. Result index is New York time.
+    Intraday frames are aligned in UTC; 1D / 1W / 1M follow the 17:00 New York session roll (the forex/gold trading day)."""
+    rule = TIMEFRAMES.get(tf, tf)
+    if tf in ("1D", "1W", "1M"):
+        ny = m1.tz_localize("UTC").tz_convert("America/New_York")
+        shifted = ny.set_axis(ny.index + pd.Timedelta(hours=7))          # 17:00 New York -> midnight
+        bars = shifted.resample(rule, label="left", closed="left").agg(AGG).dropna()
+        bars = bars.set_axis(bars.index - pd.Timedelta(hours=7))          # label = session start (17:00 NY)
+        bars.index = bars.index.tz_localize(None)
+    else:
+        bars = m1.resample(rule, label="left", closed="left").agg(AGG).dropna()
+        bars.index = bars.index.tz_localize("UTC").tz_convert("America/New_York").tz_localize(None)
     bars.index.name = "datetime"
     return bars
+
+
+def download(sym: str, start: str, end: str, tf: str = "5min", workers: int = 4,
+             cache_dir: str = "data/.dukascopy_cache") -> pd.DataFrame:
+    return to_bars(download_m1(sym, start, end, workers, cache_dir), tf)
 
 
 def main() -> None:
@@ -91,14 +115,19 @@ def main() -> None:
     ap.add_argument("symbol")
     ap.add_argument("start")
     ap.add_argument("end")
-    ap.add_argument("--tf", default="5min", help="pandas frequency: 1min, 5min, 15min, 1h ...")
-    ap.add_argument("-o", "--out")
+    ap.add_argument("--tf", default="5min",
+                    help="1min 5min 15min 30min 1h 4h 1D 1W 1M, several separated by commas, or 'all'")
+    ap.add_argument("-o", "--out", help="output file (single timeframe only)")
+    ap.add_argument("--outdir", default="data", help="output folder when several timeframes are requested")
     a = ap.parse_args()
-    bars = download(a.symbol, a.start, a.end, a.tf)
-    out = Path(a.out or f"data/{a.symbol.upper()}_{a.tf}.csv")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    bars.round(3).to_csv(out)
-    print(f"saved {len(bars)} bars {bars.index[0]} -> {bars.index[-1]} (New York time) to {out}", file=sys.stderr)
+    tfs = list(TIMEFRAMES) if a.tf == "all" else a.tf.split(",")
+    m1 = download_m1(a.symbol, a.start, a.end)
+    for tf in tfs:
+        bars = to_bars(m1, tf)
+        out = Path(a.out) if a.out and len(tfs) == 1 else Path(a.outdir) / f"{a.symbol.upper()}_{tf}.csv"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        bars.round(3).to_csv(out)
+        print(f"{tf:>5}: {len(bars):>8} bars {bars.index[0]} -> {bars.index[-1]} (New York time) -> {out}", file=sys.stderr)
 
 
 if __name__ == "__main__":

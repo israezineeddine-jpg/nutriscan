@@ -94,3 +94,20 @@ def test_dukascopy_decode():
     row = df.iloc[0]
     assert (row.open, row.high, row.low, row.close) == (3300.0, 3302.0, 3299.0, 3301.5)
     assert df.index[0] == pd.Timestamp("2026-07-01 00:00")
+
+
+def test_dukascopy_all_timeframes():
+    from dukascopy import TIMEFRAMES, to_bars
+
+    idx = pd.date_range("2026-01-04 23:00", "2026-03-10 22:00", freq="min")  # UTC, spans a DST change
+    idx = idx[idx.weekday < 5]
+    rng = np.random.default_rng(0)
+    close = 4000 + np.cumsum(rng.normal(0, 0.2, len(idx)))
+    m1 = pd.DataFrame({"open": close, "high": close + 0.3, "low": close - 0.3, "close": close, "volume": 1.0}, index=idx)
+    counts = {}
+    for tf in TIMEFRAMES:
+        b = to_bars(m1, tf)
+        counts[tf] = len(b)
+        assert (b.high >= b[["open", "close"]].max(axis=1)).all() and b.index.is_monotonic_increasing
+        assert b.volume.sum() == pytest.approx(len(m1))            # no minute lost in any timeframe
+    assert counts["1min"] > counts["5min"] > counts["1h"] > counts["1D"] > counts["1W"] >= counts["1M"] >= 2
