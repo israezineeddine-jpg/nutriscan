@@ -10,7 +10,7 @@ def load(p):
     d.index = pd.to_datetime(d.d + " " + d.t, format="%Y.%m.%d %H:%M")
     return d[["o", "h", "l", "c", "v"]]
 
-def signals(m30, lookback=10, disp_atr=1.0, max_k=3, expiry_bars=48, sl_buf=0.1, atr_n=14):
+def signals(m30, lookback=10, disp_atr=1.0, max_k=3, expiry_bars=48, sl_buf=0.1, atr_n=14, tf=30):
     """Liste des ordres limites generes a la cloture de la bougie de confirmation."""
     o, h, l, c = (m30[x].values for x in "ohlc")
     tr = np.maximum(h - l, np.maximum(abs(h - np.roll(c, 1)), abs(l - np.roll(c, 1))))
@@ -28,9 +28,9 @@ def signals(m30, lookback=10, disp_atr=1.0, max_k=3, expiry_bars=48, sl_buf=0.1,
                      (c[j] < ref_lo and l[i] - c[j] > disp_atr * atr[i])
                 if ok:
                     sl = (l[i] - sl_buf * atr[i]) if side == 1 else (h[i] + sl_buf * atr[i])
-                    start = t30[j].to_datetime64() + np.timedelta64(30, "m")
-                    out.append(dict(start=start, end=start + np.timedelta64(30 * expiry_bars, "m"),
-                                    side=side, entry=o[i], sl=sl))
+                    start = t30[j].to_datetime64() + np.timedelta64(tf, "m")
+                    out.append(dict(start=start, end=start + np.timedelta64(tf * expiry_bars, "m"),
+                                    side=side, entry=o[i], sl=sl, atr=atr[i]))
                     break
     return sorted(out, key=lambda x: x["start"])
 
@@ -59,6 +59,48 @@ def run(m30, m5, rr=2.0, cost=0.30, sigs=None, **kw):
                 keep.append(p)
             pend = [] if pos is not None else keep
         if pos is not None:
+            s = pos["side"]
+            hit_sl = (l5[q] <= pos["sl"]) if s == 1 else (h5[q] >= pos["sl"])
+            hit_tp = (h5[q] >= pos["tp"]) if s == 1 else (l5[q] <= pos["tp"])
+            if hit_sl or hit_tp:
+                r = (-1.0 if hit_sl else rr) - cost / pos["risk"]
+                trades.append((pos["open"], t, s, pos["entry"], pos["sl"], pos["tp"], r))
+                pos = None
+    return pd.DataFrame(trades, columns=["open", "close", "side", "entry", "sl", "tp", "R"])
+
+def run_conf(m5, sigs, rr=2.0, cost=1.5, win=12, buf=0.1, min_risk_atr=0.3):
+    """Entree affinee sur M5: l'OB (M30/H1) doit etre touche, puis on attend une bougie M5
+    qui cloture au-dela du haut (bas) de la bougie de touche. SL derriere le swing de la touche."""
+    t5 = m5.index.values; o5, h5, l5, c5 = (m5[x].values for x in "ohlc")
+    trades, pend, pos, si = [], [], None, 0
+    for q in range(len(t5)):
+        t = t5[q]
+        while si < len(sigs) and sigs[si]["start"] <= t:
+            if pos is None: pend.append(dict(sigs[si]))
+            si += 1
+        if pos is None and pend:
+            keep = []
+            for p in pend:
+                if t >= p["end"]: continue
+                s = p["side"]
+                if "arm" in p:
+                    p["sw"] = min(p["sw"], l5[q]) if s == 1 else max(p["sw"], h5[q])
+                    if (s == 1 and p["sw"] < p["sl"]) or (s == -1 and p["sw"] > p["sl"]): continue
+                    trig = (c5[q] > h5[p["arm"]]) if s == 1 else (c5[q] < l5[p["arm"]])
+                    if trig:
+                        e = c5[q]; sl = p["sw"] - s * buf * p["atr"]; risk = abs(e - sl)
+                        if risk < min_risk_atr * p["atr"]: continue
+                        pos = dict(side=s, entry=e, sl=sl, tp=e + s * rr * risk, risk=risk, open=t, q0=q)
+                        break
+                    if q - p["arm"] >= win: continue
+                    keep.append(p)
+                else:
+                    if (s == 1 and l5[q] < p["sl"]) or (s == -1 and h5[q] > p["sl"]): continue
+                    if (s == 1 and l5[q] <= p["entry"]) or (s == -1 and h5[q] >= p["entry"]):
+                        p["arm"] = q; p["sw"] = l5[q] if s == 1 else h5[q]
+                    keep.append(p)
+            pend = [] if pos is not None else keep
+        if pos is not None and q > pos["q0"]:
             s = pos["side"]
             hit_sl = (l5[q] <= pos["sl"]) if s == 1 else (h5[q] >= pos["sl"])
             hit_tp = (h5[q] >= pos["tp"]) if s == 1 else (l5[q] <= pos["tp"])
