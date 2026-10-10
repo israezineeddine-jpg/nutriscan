@@ -10,55 +10,63 @@ def load(p):
     d.index = pd.to_datetime(d.d + " " + d.t, format="%Y.%m.%d %H:%M")
     return d[["o", "h", "l", "c", "v"]]
 
-def run(m30, m5, rr=2.0, cost=0.30, lookback=10, disp_atr=1.0, max_k=3,
-        expiry_bars=48, sl_buf=0.1, atr_n=14):
+def signals(m30, lookback=10, disp_atr=1.0, max_k=3, expiry_bars=48, sl_buf=0.1, atr_n=14):
+    """Liste des ordres limites generes a la cloture de la bougie de confirmation."""
     o, h, l, c = (m30[x].values for x in "ohlc")
     tr = np.maximum(h - l, np.maximum(abs(h - np.roll(c, 1)), abs(l - np.roll(c, 1))))
     atr = pd.Series(tr).rolling(atr_n).mean().values
     t30 = m30.index
-    t5 = m5.index.values
-    h5, l5 = m5.h.values, m5.l.values
-    trades, busy_until = [], np.datetime64("1970-01-01")
+    out = []
     for i in range(lookback + atr_n, len(m30) - max_k - 1):
         for side in (1, -1):
-            # OB = dernière bougie opposée avant l'impulsion
             if side == 1 and not c[i] < o[i]: continue
             if side == -1 and not c[i] > o[i]: continue
             ref_hi = h[i - lookback:i].max(); ref_lo = l[i - lookback:i].min()
-            conf = None
             for k in range(1, max_k + 1):
                 j = i + k
-                if side == 1 and c[j] > ref_hi and c[j] - h[i] > disp_atr * atr[i]: conf = j; break
-                if side == -1 and c[j] < ref_lo and l[i] - c[j] > disp_atr * atr[i]: conf = j; break
-            if conf is None: continue
-            entry = o[i]                                  # bord du corps de l'OB
-            sl = (l[i] - sl_buf * atr[i]) if side == 1 else (h[i] + sl_buf * atr[i])
-            risk = abs(entry - sl)
-            tp = entry + side * rr * risk
-            start = t30[conf].to_datetime64() + np.timedelta64(30, "m")
-            end = start + np.timedelta64(30 * expiry_bars, "m")
-            if start < busy_until: continue
-            a = np.searchsorted(t5, start); b = np.searchsorted(t5, end)
-            filled = None
-            for q in range(a, b):
-                # annulé si le prix casse l'OB avant remplissage
-                if filled is None:
-                    if (side == 1 and l5[q] <= entry) or (side == -1 and h5[q] >= entry):
-                        filled = q
-                    elif (side == 1 and l5[q] < sl) or (side == -1 and h5[q] > sl):
-                        break
-                if filled is not None:
-                    hit_sl = (l5[q] <= sl) if side == 1 else (h5[q] >= sl)
-                    hit_tp = (h5[q] >= tp) if side == 1 else (l5[q] <= tp)
-                    if hit_sl or hit_tp:             # SL prioritaire (conservateur)
-                        r = -1.0 if hit_sl else rr
-                        r -= cost / risk
-                        trades.append((t5[filled], t5[q], side, entry, sl, tp, r))
-                        busy_until = t5[q]; break
-            else:
-                continue
-    df = pd.DataFrame(trades, columns=["open", "close", "side", "entry", "sl", "tp", "R"])
-    return df.sort_values("open").reset_index(drop=True)
+                ok = (c[j] > ref_hi and c[j] - h[i] > disp_atr * atr[i]) if side == 1 else \
+                     (c[j] < ref_lo and l[i] - c[j] > disp_atr * atr[i])
+                if ok:
+                    sl = (l[i] - sl_buf * atr[i]) if side == 1 else (h[i] + sl_buf * atr[i])
+                    start = t30[j].to_datetime64() + np.timedelta64(30, "m")
+                    out.append(dict(start=start, end=start + np.timedelta64(30 * expiry_bars, "m"),
+                                    side=side, entry=o[i], sl=sl))
+                    break
+    return sorted(out, key=lambda x: x["start"])
+
+def run(m30, m5, rr=2.0, cost=0.30, **kw):
+    """Simulation chronologique (sans look-ahead): le premier ordre rempli gagne,
+    les autres ordres en attente sont annules, signaux ignores si position ouverte."""
+    sigs = signals(m30, **kw)
+    t5 = m5.index.values; h5, l5 = m5.h.values, m5.l.values
+    trades, pend, pos, si = [], [], None, 0
+    for q in range(len(t5)):
+        t = t5[q]
+        while si < len(sigs) and sigs[si]["start"] <= t:
+            if pos is None: pend.append(sigs[si])
+            si += 1
+        if pos is None and pend:
+            keep = []
+            for p in pend:
+                if t >= p["end"]: continue
+                s = p["side"]
+                if (s == 1 and l5[q] <= p["entry"]) or (s == -1 and h5[q] >= p["entry"]):
+                    if pos is None:
+                        risk = abs(p["entry"] - p["sl"])
+                        pos = dict(p, risk=risk, tp=p["entry"] + s * rr * risk, open=t)
+                    continue
+                if (s == 1 and l5[q] < p["sl"]) or (s == -1 and h5[q] > p["sl"]): continue
+                keep.append(p)
+            pend = [] if pos is not None else keep
+        if pos is not None:
+            s = pos["side"]
+            hit_sl = (l5[q] <= pos["sl"]) if s == 1 else (h5[q] >= pos["sl"])
+            hit_tp = (h5[q] >= pos["tp"]) if s == 1 else (l5[q] <= pos["tp"])
+            if hit_sl or hit_tp:
+                r = (-1.0 if hit_sl else rr) - cost / pos["risk"]
+                trades.append((pos["open"], t, s, pos["entry"], pos["sl"], pos["tp"], r))
+                pos = None
+    return pd.DataFrame(trades, columns=["open", "close", "side", "entry", "sl", "tp", "R"])
 
 def stats(df):
     if df.empty: return "aucun trade"
