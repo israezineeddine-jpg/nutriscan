@@ -20,6 +20,23 @@ datetime lastBar = 0;
 
 int OnInit() { return INIT_SUCCEEDED; }
 
+// export des trades pour comparer avec trades_ob.csv (dossier tester\files)
+void OnDeinit(const int reason)
+{
+   int h = FileOpen("trades_ea.csv", FILE_CSV | FILE_WRITE, ',');
+   if(h < 0) return;
+   FileWrite(h, "open", "close", "side", "open_price", "close_price", "sl", "tp", "profit", "commission", "swap");
+   for(int i = 0; i < OrdersHistoryTotal(); i++)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) continue;
+      if(OrderMagicNumber() != Magic || OrderSymbol() != Symbol() || OrderType() > OP_SELL) continue;
+      FileWrite(h, TimeToString(OrderOpenTime(), TIME_DATE | TIME_MINUTES), TimeToString(OrderCloseTime(), TIME_DATE | TIME_MINUTES),
+                OrderType() == OP_BUY ? 1 : -1, OrderOpenPrice(), OrderClosePrice(), OrderStopLoss(), OrderTakeProfit(),
+                OrderProfit(), OrderCommission(), OrderSwap());
+   }
+   FileClose(h);
+}
+
 bool HasPosition()
 {
    for(int i = OrdersTotal() - 1; i >= 0; i--)
@@ -84,6 +101,8 @@ void Place(int s, int side)
    if(side == 1) { if(Ask <= entry) { type = OP_BUY;  price = Ask; } else type = OP_BUYLIMIT; }
    else          { if(Bid >= entry) { type = OP_SELL; price = Bid; } else type = OP_SELLLIMIT; }
    if(type <= OP_SELL) exp = 0;
+   Print("SIGNAL side=", side, " OB=", TimeToString(Time[s]), " entry=", entry, " sl=", sl, " tp=", tp,
+         " risk=", DoubleToString(risk, 2), " spread=", MarketInfo(Symbol(), MODE_SPREAD), " pts");
    if(OrderSend(Symbol(), type, lots, price, Slippage, sl, tp, "OB", Magic, exp) < 0)
       Print("OrderSend erreur ", GetLastError());
 }
