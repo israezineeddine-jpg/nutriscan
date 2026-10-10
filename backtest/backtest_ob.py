@@ -34,10 +34,10 @@ def signals(m30, lookback=10, disp_atr=1.0, max_k=3, expiry_bars=48, sl_buf=0.1,
                     break
     return sorted(out, key=lambda x: x["start"])
 
-def run(m30, m5, rr=2.0, cost=0.30, **kw):
+def run(m30, m5, rr=2.0, cost=0.30, sigs=None, **kw):
     """Simulation chronologique (sans look-ahead): le premier ordre rempli gagne,
     les autres ordres en attente sont annules, signaux ignores si position ouverte."""
-    sigs = signals(m30, **kw)
+    sigs = signals(m30, **kw) if sigs is None else sigs
     t5 = m5.index.values; h5, l5 = m5.h.values, m5.l.values
     trades, pend, pos, si = [], [], None, 0
     for q in range(len(t5)):
