@@ -22,6 +22,15 @@ enum ENUM_PRESET
    CUSTOM              = 4
 };
 
+enum ENUM_SESSION
+{
+   SESS_ALL        = 0,   // toutes les sessions
+   SESS_LONDON_NY  = 1,   // Londres + New York
+   SESS_LONDON     = 2,   // Londres seulement
+   SESS_NY         = 3,   // New York seulement
+   SESS_ASIA       = 4    // Asie seulement
+};
+
 input ENUM_PRESET Preset       = P1_M30_RR2;
 input double CustomRR          = 2.0;     // (CUSTOM) ratio R:R
 input bool   CustomM5Entry     = false;   // (CUSTOM) entree par confirmation M5
@@ -36,7 +45,12 @@ input int    ATRPeriod         = 14;
 input double GapATR            = 0.3;     // seuil du gap pour NoGap (x ATR)
 input int    M5Window          = 12;      // bougies M5 max apres le touche (mode M5)
 input double MinRiskATR        = 0.3;     // risque minimum (mode M5) en ATR
-input int    HistoryBars       = 1000;    // nombre de bougies M30 analysees
+input ENUM_SESSION SessionFilter = SESS_ALL;  // filtre de session (selon l'heure du signal)
+input int    LondonStartHour   = 7;       // debut Londres (heure du serveur)
+input int    NYStartHour       = 13;      // debut New York (heure du serveur)
+input int    SessionEndHour    = 21;      // fin New York (heure du serveur)
+input int    MonthsShown       = 6;       // nombre de mois affiches dans le dashboard
+input int    HistoryBars       = 3000;    // nombre de bougies M30 analysees (~1100 par mois)
 input double CostPerTrade      = 0.26;    // cout par trade (spread, en prix) pour les stats en R
 input bool   OneTradeAtATime   = true;    // stats: ignorer les signaux pendant une position ouverte
 input bool   ShowDashboard     = true;    // afficher le tableau de bord
@@ -80,10 +94,32 @@ struct SigRec
    double   tp;
    string   res;
    double   R;        // seulement pour WIN / LOSS
+   int      sess;     // 0 Asie, 1 Londres, 2 New York, 3 Hors session
 };
 
 SigRec sigs[];
 int    nSig = 0;
+
+int SessionOf(datetime t)
+{
+   MqlDateTime d; TimeToStruct(t, d);
+   if(d.hour >= SessionEndHour) return 3;
+   if(d.hour < LondonStartHour) return 0;
+   if(d.hour < NYStartHour)     return 1;
+   return 2;
+}
+
+bool SessionAllowed(int sx)
+{
+   switch(SessionFilter)
+   {
+      case SESS_LONDON_NY: return (sx == 1 || sx == 2);
+      case SESS_LONDON:    return (sx == 1);
+      case SESS_NY:        return (sx == 2);
+      case SESS_ASIA:      return (sx == 0);
+      default:             return true;
+   }
+}
 
 int OnInit()
 {
@@ -240,6 +276,9 @@ void DrawDashboard(int rates_total, const datetime &time[], int start)
       ArrayResize(taken, nt + 1); taken[nt++] = idx[a];
       busy = (s.res == "OPEN") ? (datetime)D'2100.01.01' : s.tEnd;
    }
+   int sN[4], sW[4]; double sRv[4];
+   ArrayInitialize(sN, 0); ArrayInitialize(sW, 0); ArrayInitialize(sRv, 0.0);
+   int mKey[], mN[]; double mRv[]; int nm = 0;
    int tw = 0, tl = 0, streak = 0, maxStreak = 0, nLong = 0, nShort = 0;
    double totR = 0, gp = 0, gl = 0, eq = 0, peak = 0, dd = 0, rLong = 0, rShort = 0;
    for(int a = 0; a < nt; a++)
@@ -249,6 +288,15 @@ void DrawDashboard(int rates_total, const datetime &time[], int start)
       totR += s.R; eq += s.R; peak = MathMax(peak, eq); dd = MathMax(dd, peak - eq);
       if(s.R > 0) { tw++; gp += s.R; streak = 0; } else { tl++; gl += -s.R; streak++; maxStreak = MathMax(maxStreak, streak); }
       if(s.side == 1) { nLong++; rLong += s.R; } else { nShort++; rShort += s.R; }
+      sN[s.sess]++; sRv[s.sess] += s.R; if(s.R > 0) sW[s.sess]++;
+      MqlDateTime dt; TimeToStruct(s.tEntry, dt);
+      int key = dt.year * 100 + dt.mon;
+      if(nm == 0 || mKey[nm - 1] != key)
+      {
+         ArrayResize(mKey, nm + 1); ArrayResize(mN, nm + 1); ArrayResize(mRv, nm + 1);
+         mKey[nm] = key; mN[nm] = 0; mRv[nm] = 0; nm++;
+      }
+      mN[nm - 1]++; mRv[nm - 1] += s.R;
    }
    int nClosed = tw + tl;
    double winPct = (nClosed > 0) ? 100.0 * tw / nClosed : 0;
@@ -270,6 +318,22 @@ void DrawDashboard(int rates_total, const datetime &time[], int start)
    AddLine("Total " + SR(totR) + "  Moy " + SR(avgR) + "  PF " + F(pf, 2), (totR >= 0 ? clrLime : clrTomato));
    AddLine("Max DD " + F(dd, 1) + "R | Pire serie: " + IntegerToString(maxStreak) + " pertes", clrWhite);
    AddLine("Long: " + IntegerToString(nLong) + " (" + SR(rLong) + ")  Short: " + IntegerToString(nShort) + " (" + SR(rShort) + ")", clrWhite);
+   AddLine("---------------------------------------------", clrDimGray);
+   string sname[4] = {"Asie  ", "Londres", "New York", "Hors sess."};
+   AddLine("SESSIONS (heure serveur) filtre: " + EnumToString(SessionFilter), clrAqua);
+   for(int q = 0; q < 4; q++)
+   {
+      double wp = (sN[q] > 0) ? 100.0 * sW[q] / sN[q] : 0;
+      AddLine(StringFormat("%-10s n=%-3d Win%% %-5s %s", sname[q], sN[q], F(wp, 0), SR(sRv[q])), (sRv[q] >= 0 ? clrLime : clrTomato));
+   }
+   AddLine("---------------------------------------------", clrDimGray);
+   AddLine("MOIS (derniers " + IntegerToString(MonthsShown) + ")", clrAqua);
+   int mFrom = MathMax(0, nm - MonthsShown), mPos = 0;
+   for(int q = 0; q < nm; q++) if(mRv[q] > 0) mPos++;
+   for(int q = mFrom; q < nm; q++)
+      AddLine(StringFormat("%d-%02d   n=%-3d %s", mKey[q] / 100, mKey[q] % 100, mN[q], SR(mRv[q])), (mRv[q] >= 0 ? clrLime : clrTomato));
+   if(nm == 0) AddLine("(aucun)", clrSilver);
+   else AddLine("Mois positifs: " + IntegerToString(mPos) + " / " + IntegerToString(nm), clrWhite);
    AddLine("---------------------------------------------", clrDimGray);
    if(nSig > 0)
    {
@@ -392,6 +456,9 @@ int OnCalculate(const int rates_total, const int prev_calculated, const datetime
          datetime t0   = time[j] + per;
          datetime tE   = t0 + (datetime)(ExpiryBars * per);
 
+         int sidx = SessionOf(t0);
+         if(!SessionAllowed(sidx)) continue;
+
          SimResult sr;
          if(n5 > 0) Simulate(r5, n5, side, t0, tE, entry0, sl0, atr[i], sr);
          else { sr.entered = false; sr.entry = entry0; sr.sl = sl0; sr.tp = 0; sr.tEnd = tE; sr.res = "NO M5 DATA"; sr.tEntry = 0; }
@@ -407,7 +474,7 @@ int OnCalculate(const int rates_total, const int prev_calculated, const datetime
             ArrayResize(sigs, nSig + 1);
             sigs[nSig].tSig = time[j]; sigs[nSig].side = side; sigs[nSig].entry0 = entry0; sigs[nSig].sl0 = sl0;
             sigs[nSig].entered = sr.entered; sigs[nSig].tEntry = sr.tEntry; sigs[nSig].tEnd = sr.tEnd;
-            sigs[nSig].entry = sr.entry; sigs[nSig].sl = sr.sl; sigs[nSig].tp = sr.tp; sigs[nSig].res = sr.res; sigs[nSig].R = Rv;
+            sigs[nSig].entry = sr.entry; sigs[nSig].sl = sr.sl; sigs[nSig].tp = sr.tp; sigs[nSig].res = sr.res; sigs[nSig].R = Rv; sigs[nSig].sess = sidx;
             nSig++;
          }
          color c = (side == 1) ? BuyColor : SellColor;
