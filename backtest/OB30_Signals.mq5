@@ -1,5 +1,5 @@
 //+------------------------------------------------------------------+
-//| OB30_Signals.mq5  -  Indicateur MT5 (meme code que la version     |
+//| OB30_Signals.mq5  -  Indicateur MT5 v3 (meme code que la version  |
 //| MT4 OB30_Signals.mq4)                                            |
 //| Affiche ENTRY / SL / TP des signaux de l'EA OB30 (P1):           |
 //|  - zones OB sur M30, signal sur bougie M5 (touche de la zone,    |
@@ -12,7 +12,6 @@
 //| Le resultat WIN/LOSS est une SIMULATION sur bougies M5.          |
 //+------------------------------------------------------------------+
 #property indicator_chart_window
-#property indicator_buffers 0
 #property indicator_plots   0
 
 input string SilverSymbol   = "XAGUSDm";  // symbole de l'argent chez le broker
@@ -30,7 +29,7 @@ input bool   NoWeekend      = true;       // pas de position pendant le week-end
 input int    FriEntryCutHour= 18;         // vendredi: plus d'entree a partir de (heure serveur)
 input int    FriCloseHour   = 20;         // vendredi: fermeture a (heure serveur)
 input int    FriCloseMin    = 30;
-input int    HistoryBars    = 4000;       // bougies M5 analysees (~14 jours)
+input int    HistoryBars    = 4000;       // bougies M5 analysees (~14 jours, garder <= 10000)
 input bool   ShowAllZones   = false;      // dessiner aussi les zones sans trade
 input bool   ShowOutcome    = true;       // afficher TP / SL / ...
 input bool   ShowDashboard  = true;
@@ -59,20 +58,41 @@ int nt = 0;
 datetime lastSig   = 0;
 datetime lastAlert = 0;
 string   g_silver  = "";          // symbole argent reellement utilise
+string   g_why     = "";          // raison du dernier echec de chargement (affichee sur le graphique)
+string   g_lastMsg = "";          // dernier message ecrit dans le journal (anti-spam)
+bool     g_incomplete = false;    // historique M5 encore en cours de telechargement
+int      g_n30 = 0;               // nombre de bougies M30 chargees
+uint     g_lastResolve = 0;
 
 string Lines[]; color Cols[]; int nLines = 0;
 
 //+------------------------------------------------------------------+
-// cherche le symbole argent: celui des inputs, sinon le plus court nom qui commence par XAGUSD
+void Note(string msg)
+{
+   if(msg == g_lastMsg) return;
+   g_lastMsg = msg;
+   Print("OB30 Signals: ", msg);
+}
+
+// cherche le symbole argent: celui des inputs, sinon XAGUSD*, sinon XAG*, sinon *SILVER* (le plus court nom)
 string ResolveSilver()
 {
    if(SymbolSelect(SilverSymbol, true)) return(SilverSymbol);
    string best = "";
    int tot = SymbolsTotal(false);
-   for(int i = 0; i < tot; i++)
+   for(int pass = 0; pass < 3 && best == ""; pass++)
    {
-      string nm = SymbolName(i, false);
-      if(StringFind(nm, "XAGUSD") == 0 && (best == "" || StringLen(nm) < StringLen(best))) best = nm;
+      for(int i = 0; i < tot; i++)
+      {
+         string nm = SymbolName(i, false);
+         string up = nm;
+         StringToUpper(up);
+         bool ok = false;
+         if(pass == 0) ok = (StringFind(up, "XAGUSD") == 0);
+         if(pass == 1) ok = (StringFind(up, "XAG") == 0);
+         if(pass == 2) ok = (StringFind(up, "SILVER") >= 0);
+         if(ok && (best == "" || StringLen(nm) < StringLen(best))) best = nm;
+      }
    }
    if(best != "" && SymbolSelect(best, true)) return(best);
    return(SilverSymbol);
@@ -83,7 +103,7 @@ int OnInit()
    if(SMTWindow < 1 || HistoryBars < 500 || RR <= 0.0 || ExpireBars < 1) return(INIT_PARAMETERS_INCORRECT);
    IndicatorSetString(INDICATOR_SHORTNAME, "OB30 Signals");
    g_silver = ResolveSilver();
-   Print("OB30 Signals: symbole argent utilise = ", g_silver);
+   Print("OB30 Signals v3: or = ", _Symbol, " | argent = ", g_silver);
    EventSetTimer(3);
    return(INIT_SUCCEEDED);
 }
@@ -344,7 +364,7 @@ void DrawAll()
    datetime tNow = t5[n5 - 1];
    datetime tFar = tNow + 12 * 300;
    bool zoneDrawn[];
-   ArrayResize(zoneDrawn, nz);
+   ArrayResize(zoneDrawn, MathMax(nz, 1));
    for(int z = 0; z < nz; z++) zoneDrawn[z] = false;
 
    for(int i = 0; i < nt; i++)
@@ -411,13 +431,14 @@ void Dashboard()
    for(int z = 0; z < nz; z++)
       if(!zUsed[z] && zA5[z] <= n5 - 1 && (t5[n5 - 1] - zAct[z]) <= ExpireBars * 300 + 7200 && zBrk[z] > n5 - 1) nAct++;
 
-   AddLine("OB30 SIGNALS  " + _Symbol + "  (M30 OB + M5 SMT)", clrAqua);
+   AddLine("OB30 SIGNALS v3  " + _Symbol + "  (M30 OB + M5 SMT)", clrAqua);
    AddLine("TYPE D'ORDRE: MARCHE (market) a l'ouverture de la", clrYellow);
    AddLine("bougie M5 suivante. BUY=Ask  SELL=Bid  (pas de limit)", clrYellow);
    AddLine("SL = meche bougie signal " + F(SLFixPts, 1) + " | TP = " + F(RR, 1) + "R", clrWhite);
    AddLine("SMT: " + (UseSMT ? ("ON " + g_silver + " win " + IntegerToString(SMTWindow)) : "OFF") +
            " | couleur: " + (NeedColor ? "oui" : "non"), clrWhite);
    if(UseSMT && nS <= 0) AddLine("!! Pas de donnees " + g_silver + " (M5): verifier le nom du symbole !!", clrTomato);
+   AddLine("Donnees: M5 " + IntegerToString(n5) + " | M30 " + IntegerToString(g_n30) + " | " + g_silver + " " + IntegerToString(nS), clrSilver);
    AddLine("-----------------------------------------------", clrDimGray);
    AddLine("Zones OB actives (en attente): " + IntegerToString(nAct), clrWhite);
    AddLine("SIGNAUX: " + IntegerToString(nt) + "  TP " + IntegerToString(w) + "  SL " + IntegerToString(l) + "  ouvert " + IntegerToString(o), clrWhite);
@@ -474,26 +495,39 @@ bool LoadData()
    MqlRates r5[], r30[], rs[];
    ArraySetAsSeries(r5, false); ArraySetAsSeries(r30, false); ArraySetAsSeries(rs, false);
    int got5 = CopyRates(_Symbol, PERIOD_M5, 0, HistoryBars, r5);
-   if(got5 < 2 * SMTWindow + 10) return(false);
-   if(r5[got5 - 1].time != iTime(_Symbol, PERIOD_M5, 0)) return(false);      // historique pas encore a jour
+   if(got5 < 2 * SMTWindow + 10)
+   {
+      g_why = "M5 " + _Symbol + ": " + IntegerToString(got5) + " barres (historique en cours de chargement)";
+      return(false);
+   }
+   if(r5[got5 - 1].time != iTime(_Symbol, PERIOD_M5, 0)) { g_why = "M5: historique pas encore a jour"; return(false); }
    n5 = got5;
+   g_incomplete = (got5 < HistoryBars && got5 < iBars(_Symbol, PERIOD_M5));
    ArrayResize(t5, n5); ArrayResize(o5, n5); ArrayResize(h5, n5); ArrayResize(l5, n5); ArrayResize(c5, n5);
    for(int i = 0; i < n5; i++) { t5[i] = r5[i].time; o5[i] = r5[i].open; h5[i] = r5[i].high; l5[i] = r5[i].low; c5[i] = r5[i].close; }
    datetime tStop = t5[n5 - 1] + 3600;
+   datetime t30Start = t5[0] - 60 * 1800;
 
-   int got30 = CopyRates(_Symbol, PERIOD_M30, t5[0] - 60 * 1800, tStop, r30);
-   if(got30 < 20) return(false);
-   if(r30[got30 - 1].time < t5[n5 - 1] - 1800) return(false);                // M30 pas encore a jour
+   int got30 = CopyRates(_Symbol, PERIOD_M30, t30Start, tStop, r30);
+   if(got30 < 20) { g_why = "M30 " + _Symbol + ": " + IntegerToString(got30) + " barres (chargement)"; return(false); }
+   if(r30[got30 - 1].time < t5[n5 - 1] - 1800) { g_why = "M30 pas encore a jour"; return(false); }
+   g_n30 = got30;
 
    nS = 0;
    if(UseSMT)
    {
-      int gs = CopyRates(g_silver, PERIOD_M5, t5[0] - 3600, tStop, rs);
+      datetime tsStart = t5[0] - 3600;
+      int gs = CopyRates(g_silver, PERIOD_M5, tsStart, tStop, rs);
       if(gs > 2 * SMTWindow && rs[gs - 1].time >= t5[n5 - 1] - 6 * 3600)
       {
          nS = gs;
          ArrayResize(ts, nS); ArrayResize(hs, nS); ArrayResize(ls, nS);
          for(int i = 0; i < nS; i++) { ts[i] = rs[i].time; hs[i] = rs[i].high; ls[i] = rs[i].low; }
+      }
+      else
+      {
+         g_why = "argent " + g_silver + ": " + IntegerToString(gs) + " barres M5";
+         if(gs > 0) g_why += " (derniere " + TimeToString(rs[gs - 1].time) + ")";
       }
    }
    BuildZones(r30, got30);
@@ -509,38 +543,61 @@ bool LoadData()
    return(true);
 }
 
-void ShowStatus(string msg)
+void StatusLabel(string nm, int row, string msg, color clr)
 {
-   if(!ShowDashboard) return;
-   ObjectsDeleteAll(0, "OB30D_");
-   string nm = "OB30D_l0";
    ObjectCreate(0, nm, OBJ_LABEL, 0, 0, 0);
    ObjectSetInteger(0, nm, OBJPROP_CORNER, CORNER_LEFT_UPPER);
    ObjectSetInteger(0, nm, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
    ObjectSetInteger(0, nm, OBJPROP_XDISTANCE, DashX);
-   ObjectSetInteger(0, nm, OBJPROP_YDISTANCE, DashY);
+   ObjectSetInteger(0, nm, OBJPROP_YDISTANCE, DashY + row * 16);
    ObjectSetString(0, nm, OBJPROP_TEXT, msg);
-   ObjectSetInteger(0, nm, OBJPROP_COLOR, clrYellow);
+   ObjectSetInteger(0, nm, OBJPROP_COLOR, clr);
    ObjectSetInteger(0, nm, OBJPROP_FONTSIZE, 9);
    ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+}
+
+void ShowStatus(string l1, string l2)
+{
+   if(!ShowDashboard) return;
+   ObjectsDeleteAll(0, "OB30D_");
+   StatusLabel("OB30D_l0", 0, l1, clrYellow);
+   if(l2 != "") StatusLabel("OB30D_l1", 1, l2, clrYellow);
 }
 
 void Refresh(bool force)
 {
    static uint lastTry = 0;
    datetime cur = iTime(_Symbol, PERIOD_M5, 0);
-   if(cur == 0) { ShowStatus("OB30: attente de l'historique M5..."); return; }
-   if(!force && cur == lastSig) return;                       // une evaluation par bougie M5
+   if(cur == 0)
+   {
+      Note("attente de l'historique M5 de " + _Symbol);
+      ShowStatus("OB30 v3: attente de l'historique M5 de " + _Symbol + "...", "");
+      return;
+   }
+   if(!force && cur == lastSig && !g_incomplete) return;       // une evaluation par bougie M5
    uint now = GetTickCount();
    if(now - lastTry < 2000) return;                            // limite les essais
    lastTry = now;
 
-   if(!LoadData()) { ShowStatus("OB30: chargement de l'historique M5 / M30..."); return; }
+   if(!LoadData())
+   {
+      Note(g_why);
+      ShowStatus("OB30 v3: chargement des donnees...", g_why);
+      return;
+   }
    if(UseSMT && nS <= 0)
    {
-      ShowStatus("OB30: pas de donnees " + g_silver + " (M5). Ouvrez son graphique M5 et verifiez le nom du symbole.");
+      if(now - g_lastResolve > 30000)                          // on re-cherche le symbole argent de temps en temps
+      {
+         g_lastResolve = now;
+         string again = ResolveSilver();
+         if(again != g_silver) { g_silver = again; Note("symbole argent = " + g_silver); }
+      }
+      Note(g_why);
+      ShowStatus("OB30 v3: pas de donnees argent (" + g_silver + ")", g_why + " | ouvrez son graphique M5");
       return;                                                  // reessai au prochain timer
    }
+   Note("OK: " + IntegerToString(n5) + " barres M5, " + IntegerToString(g_n30) + " M30, argent " + g_silver + " " + IntegerToString(nS));
    lastSig = t5[n5 - 1];
    Simulate();
    DrawAll();
