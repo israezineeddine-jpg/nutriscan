@@ -10,7 +10,7 @@ def load(p):
     d.index = pd.to_datetime(d.d + " " + d.t, format="%Y.%m.%d %H:%M")
     return d[["o", "h", "l", "c", "v"]]
 
-def signals(m30, lookback=10, disp_atr=1.0, max_k=3, expiry_bars=48, sl_buf=0.1, atr_n=14, tf=30):
+def signals(m30, lookback=10, disp_atr=1.0, max_k=3, expiry_bars=48, sl_buf=0.1, atr_n=14, tf=30, gap_atr=None):
     """Liste des ordres limites generes a la cloture de la bougie de confirmation."""
     o, h, l, c = (m30[x].values for x in "ohlc")
     tr = np.maximum(h - l, np.maximum(abs(h - np.roll(c, 1)), abs(l - np.roll(c, 1))))
@@ -26,6 +26,8 @@ def signals(m30, lookback=10, disp_atr=1.0, max_k=3, expiry_bars=48, sl_buf=0.1,
                 j = i + k
                 ok = (c[j] > ref_hi and c[j] - h[i] > disp_atr * atr[i]) if side == 1 else \
                      (c[j] < ref_lo and l[i] - c[j] > disp_atr * atr[i])
+                if ok and gap_atr is not None:
+                    ok = all(abs(o[x] - c[x - 1]) <= gap_atr * atr[i] for x in range(i, j + 1))
                 if ok:
                     sl = (l[i] - sl_buf * atr[i]) if side == 1 else (h[i] + sl_buf * atr[i])
                     start = t30[j].to_datetime64() + np.timedelta64(tf, "m")
