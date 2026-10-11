@@ -7,7 +7,7 @@
 
 input double Lots        = 0.10;   // lot fixe (si RiskPercent = 0)
 input double RiskPercent = 0.0;    // % du solde risque par trade (0 = lot fixe)
-input double RR          = 1.0;    // ratio R:R (config #1)
+input double RR          = 1.5;    // ratio R:R
 input int    Lookback    = 10;     // bougies pour le BOS
 input double DispATR     = 2.0;    // impulsion minimale en ATR (config #1)
 input int    MaxK        = 3;      // bougies max pour la confirmation
