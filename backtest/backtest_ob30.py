@@ -49,9 +49,11 @@ class Silver:
         return fn(arr[a:b]) if b > a else None
 
 
-def smt_ok(q, d, gold, silver, n=24):
-    """SMT sur la bougie M5 q (derniere cloturee). d=1: haussier, -1: baissier."""
-    if silver is None:
+def smt_ok(q, d, gold, silver, n=24, mode="real"):
+    """SMT sur la bougie M5 q (derniere cloturee). d=1: haussier, -1: baissier.
+    mode: 'real' = SMT complet (or + argent) | 'sweep' = seulement la condition sur l'or (nouveau plus bas/haut
+    sur n bougies, sans regarder l'argent) | 'off' = aucun filtre."""
+    if mode == "off" or (silver is None and mode == "real"):
         return True
     if q - 2 * n + 1 < 0:
         return False
@@ -62,19 +64,26 @@ def smt_ok(q, d, gold, silver, n=24):
         g1 = gold["l"][q - n + 1:q + 1].min(); g0 = gold["l"][q - 2 * n + 1:q - n + 1].min()
         if not (gold["l"][q] <= g1 and g1 < g0):
             return False
+        if mode == "sweep":
+            return True
         s1 = silver.rng(ta1, tb1, np.min, silver.l); s0 = silver.rng(ta0, tb0, np.min, silver.l)
         return s1 is not None and s0 is not None and s1 >= s0
     h1 = gold["h"][q - n + 1:q + 1].max(); h0 = gold["h"][q - 2 * n + 1:q - n + 1].max()
     if not (gold["h"][q] >= h1 and h1 > h0):
         return False
+    if mode == "sweep":
+        return True
     s1 = silver.rng(ta1, tb1, np.max, silver.h); s0 = silver.rng(ta0, tb0, np.max, silver.h)
     return s1 is not None and s0 is not None and s1 <= s0
 
 
 def run(m30, m5, silver_df=None, preset=1, spread=0.35, start=None, end=None, deposit=10000.0,
         risk_pct=0.5, sl_fix=2.0, max_risk=20.0, expire=576, hold=288, daily_loss=2.0, max_consec=3,
-        fri_cut=18, fri_close_min=20 * 60 + 30, smt_win=24, contract=100.0, collect_candidates=False):
-    P = PRESETS[preset]
+        fri_cut=18, fri_close_min=20 * 60 + 30, smt_win=24, contract=100.0, collect_candidates=False,
+        smt_mode='real', need_color=True, rr=None):
+    P = dict(PRESETS[preset])
+    if rr is not None:
+        P['rr'] = rr
     zones = []
     if P["m30"]:
         zones += build_zones(m30, 30, P["gap"])
@@ -146,10 +155,10 @@ def run(m30, m5, silver_df=None, preset=1, spread=0.35, start=None, end=None, de
                 z["used"] = True
                 continue
             if z["dir"] == 1:
-                sig = l5[s] <= z["hi"] and c5[s] > o5[s] and smt_ok(s, 1, gold, silver, smt_win)
+                sig = l5[s] <= z["hi"] and (c5[s] > o5[s] or not need_color) and smt_ok(s, 1, gold, silver, smt_win, smt_mode)
                 slv = l5[s] - sl_fix
             else:
-                sig = h5[s] >= z["lo"] and c5[s] < o5[s] and smt_ok(s, -1, gold, silver, smt_win)
+                sig = h5[s] >= z["lo"] and (c5[s] < o5[s] or not need_color) and smt_ok(s, -1, gold, silver, smt_win, smt_mode)
                 slv = h5[s] + sl_fix
             if not sig:
                 continue
