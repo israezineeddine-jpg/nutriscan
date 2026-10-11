@@ -151,7 +151,8 @@ def run(m30, m5, silver_df=None, preset=1, spread=0.35, start=None, end=None, de
         for z in zones:
             if z["used"] or z["a5"] > s:
                 continue
-            if s + 1 - z["a5"] > expire or z["brk"] <= s:
+            # l'EA ne garde que les zones activees il y a < ExpireBars*300+7200 s (calendrier, week-end compris)
+            if s + 1 - z["a5"] > expire or z["brk"] <= s or (t5[q] - z["act"]) > np.timedelta64(expire * 300 + 7200, "s"):
                 z["used"] = True
                 continue
             if z["dir"] == 1:
