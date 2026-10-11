@@ -6,7 +6,7 @@
 
 input double Lots        = 0.10;   // lot fixe (si RiskPercent = 0)
 input double RiskPercent = 0.0;    // % du solde risque par trade (0 = lot fixe)
-input double RR          = 1.5;    // ratio R:R
+input double RR          = 2.0;    // ratio R:R
 input int    Lookback    = 10;     // bougies pour le BOS
 input double DispATR     = 2.0;    // impulsion minimale en ATR (config #1)
 input int    MaxK        = 3;      // bougies max pour la confirmation
@@ -15,6 +15,14 @@ input double SLBufATR    = 0.1;    // marge du SL en ATR
 input int    ATRPeriod   = 14;
 input int    Slippage    = 30;
 input int    Magic       = 202511;
+
+// --- filtres (heure du SERVEUR du broker, Exness = GMT+0)
+input bool   UseSessionFilter = true;   // trader seulement Londres + New York
+input int    SessionStartHour = 7;      // debut Londres
+input int    SessionEndHour   = 21;     // fin New York
+input bool   UseFridayFilter  = true;   // filtre fin de semaine
+input int    FridayNoNewHour  = 18;     // vendredi: plus de nouveaux ordres a partir de cette heure
+input int    FridayCloseHour  = 20;     // vendredi: fermer TOUTES les positions et ordres a cette heure
 
 datetime lastBar = 0;
 
@@ -107,13 +115,30 @@ void Place(int s, int side)
       Print("OrderSend erreur ", GetLastError());
 }
 
+void CloseAll()
+{
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic || OrderSymbol() != Symbol()) continue;
+      if(OrderType() == OP_BUY)       OrderClose(OrderTicket(), OrderLots(), Bid, Slippage);
+      else if(OrderType() == OP_SELL) OrderClose(OrderTicket(), OrderLots(), Ask, Slippage);
+      else                            OrderDelete(OrderTicket());
+   }
+}
+
 void OnTick()
 {
+   // fin de semaine: fermer toutes les positions et supprimer les ordres en attente
+   if(UseFridayFilter && DayOfWeek() == 5 && Hour() >= FridayCloseHour) { CloseAll(); return; }
+
    if(HasPosition()) { DeletePendings(false); return; }
    DeletePendings(true);                       // OB casse avant remplissage
 
    if(Time[0] == lastBar) return;              // une evaluation par nouvelle bougie
    lastBar = Time[0];
+   if(UseSessionFilter && (TimeHour(Time[0]) < SessionStartHour || TimeHour(Time[0]) >= SessionEndHour)) return;
+   if(UseFridayFilter && TimeDayOfWeek(Time[0]) == 5 && TimeHour(Time[0]) >= FridayNoNewHour) return;
    if(Bars < Lookback + ATRPeriod + MaxK + 5) return;
 
    // bougie 1 = derniere cloturee = confirmation ; OB en s = 1+k

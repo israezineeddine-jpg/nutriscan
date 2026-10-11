@@ -36,16 +36,24 @@ def signals(m30, lookback=10, disp_atr=1.0, max_k=3, expiry_bars=48, sl_buf=0.1,
                     break
     return sorted(out, key=lambda x: x["start"])
 
-def run(m30, m5, rr=2.0, cost=0.30, sigs=None, **kw):
+def run(m30, m5, rr=2.0, cost=0.30, sigs=None, fri_no_new=None, fri_close=None, **kw):
     """Simulation chronologique (sans look-ahead): le premier ordre rempli gagne,
     les autres ordres en attente sont annules, signaux ignores si position ouverte."""
     sigs = signals(m30, **kw) if sigs is None else sigs
-    t5 = m5.index.values; h5, l5 = m5.h.values, m5.l.values
+    t5 = m5.index.values; h5, l5, c5 = m5.h.values, m5.l.values, m5.c.values
+    wd = m5.index.weekday.values; hr = m5.index.hour.values
     trades, pend, pos, si = [], [], None, 0
     for q in range(len(t5)):
         t = t5[q]
+        if fri_close is not None and wd[q] == 4 and hr[q] >= fri_close:     # fin de semaine: tout fermer
+            pend = []
+            if pos is not None:
+                r = pos["side"] * (c5[q] - pos["entry"]) / pos["risk"] - cost / pos["risk"]
+                trades.append((pos["open"], t, pos["side"], pos["entry"], pos["sl"], pos["tp"], r))
+                pos = None
         while si < len(sigs) and sigs[si]["start"] <= t:
-            if pos is None: pend.append(sigs[si])
+            blocked = (fri_no_new is not None and wd[q] == 4 and hr[q] >= fri_no_new)
+            if pos is None and not blocked: pend.append(sigs[si])
             si += 1
         if pos is None and pend:
             keep = []
