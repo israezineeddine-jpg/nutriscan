@@ -37,6 +37,11 @@ input double GapATR            = 0.3;     // seuil du gap pour NoGap (x ATR)
 input int    M5Window          = 12;      // bougies M5 max apres le touche (mode M5)
 input double MinRiskATR        = 0.3;     // risque minimum (mode M5) en ATR
 input int    HistoryBars       = 1000;    // nombre de bougies M30 analysees
+input double CostPerTrade      = 0.26;    // cout par trade (spread, en prix) pour les stats en R
+input bool   OneTradeAtATime   = true;    // stats: ignorer les signaux pendant une position ouverte
+input bool   ShowDashboard     = true;    // afficher le tableau de bord
+input int    DashX             = 10;      // position X du tableau de bord
+input int    DashY             = 25;      // position Y du tableau de bord
 input bool   ShowAllRR         = true;    // afficher aussi 1:1, 1:2, 1:3
 input bool   ShowOutcome       = true;    // afficher WIN / LOSS / ...
 input bool   AlertOnSignal     = true;    // alerte a chaque nouveau signal
@@ -61,6 +66,25 @@ struct SimResult
    string   res;
 };
 
+struct SigRec
+{
+   datetime tSig;
+   int      side;
+   double   entry0;
+   double   sl0;
+   bool     entered;
+   datetime tEntry;
+   datetime tEnd;
+   double   entry;
+   double   sl;
+   double   tp;
+   string   res;
+   double   R;        // seulement pour WIN / LOSS
+};
+
+SigRec sigs[];
+int    nSig = 0;
+
 int OnInit()
 {
    switch(Preset)
@@ -75,7 +99,7 @@ int OnInit()
    return(INIT_SUCCEEDED);
 }
 
-void OnDeinit(const int reason) { ObjectsDeleteAll(0, P); }
+void OnDeinit(const int reason) { ObjectsDeleteAll(0, P); ObjectsDeleteAll(0, "OBD_"); }
 
 void Line(string name, datetime t1, datetime t2, double price, color clr, ENUM_LINE_STYLE st, int w)
 {
@@ -164,6 +188,143 @@ void Simulate(const MqlRates &r5[], int n5, int side, datetime t0, datetime tE,
    }
 }
 
+string Lines[];
+color  Cols[];
+int    nLines = 0;
+
+void AddLine(string t, color c = clrWhite)
+{
+   ArrayResize(Lines, nLines + 1); ArrayResize(Cols, nLines + 1);
+   Lines[nLines] = t; Cols[nLines] = c; nLines++;
+}
+
+string F(double v, int d = 1) { return DoubleToString(v, d); }
+string SR(double v) { return (v >= 0 ? "+" : "") + DoubleToString(v, 2) + "R"; }
+
+void DrawDashboard(int rates_total, const datetime &time[], int start)
+{
+   ObjectsDeleteAll(0, "OBD_");
+   if(!ShowDashboard) return;
+   nLines = 0;
+
+   // compteurs par statut
+   int cWin = 0, cLoss = 0, cOpen = 0, cPend = 0, cExp = 0, cCan = 0, cSkip = 0;
+   for(int i = 0; i < nSig; i++)
+   {
+      string r = sigs[i].res;
+      if(StringFind(r, "WIN") == 0) cWin++;
+      else if(StringFind(r, "LOSS") == 0) cLoss++;
+      else if(r == "OPEN") cOpen++;
+      else if(r == "PENDING") cPend++;
+      else if(r == "EXPIRED") cExp++;
+      else if(r == "CANCELLED") cCan++;
+      else cSkip++;
+   }
+
+   // trades clos tries par heure d'entree (+ filtre 1 trade a la fois)
+   int idx[]; int m = 0;
+   for(int i = 0; i < nSig; i++)
+      if(sigs[i].entered && (StringFind(sigs[i].res, "WIN") == 0 || StringFind(sigs[i].res, "LOSS") == 0 || sigs[i].res == "OPEN"))
+      { ArrayResize(idx, m + 1); idx[m++] = i; }
+   for(int a = 1; a < m; a++)                     // tri par insertion
+   {
+      int key = idx[a]; int b = a - 1;
+      while(b >= 0 && sigs[idx[b]].tEntry > sigs[key].tEntry) { idx[b + 1] = idx[b]; b--; }
+      idx[b + 1] = key;
+   }
+   int taken[]; int nt = 0; datetime busy = 0;
+   for(int a = 0; a < m; a++)
+   {
+      SigRec s = sigs[idx[a]];
+      if(OneTradeAtATime && s.tEntry < busy) continue;
+      ArrayResize(taken, nt + 1); taken[nt++] = idx[a];
+      busy = (s.res == "OPEN") ? (datetime)D'2100.01.01' : s.tEnd;
+   }
+   int tw = 0, tl = 0, streak = 0, maxStreak = 0, nLong = 0, nShort = 0;
+   double totR = 0, gp = 0, gl = 0, eq = 0, peak = 0, dd = 0, rLong = 0, rShort = 0;
+   for(int a = 0; a < nt; a++)
+   {
+      SigRec s = sigs[taken[a]];
+      if(s.res == "OPEN") continue;
+      totR += s.R; eq += s.R; peak = MathMax(peak, eq); dd = MathMax(dd, peak - eq);
+      if(s.R > 0) { tw++; gp += s.R; streak = 0; } else { tl++; gl += -s.R; streak++; maxStreak = MathMax(maxStreak, streak); }
+      if(s.side == 1) { nLong++; rLong += s.R; } else { nShort++; rShort += s.R; }
+   }
+   int nClosed = tw + tl;
+   double winPct = (nClosed > 0) ? 100.0 * tw / nClosed : 0;
+   double pf = (gl > 0) ? gp / gl : (gp > 0 ? 99.9 : 0);
+   double avgR = (nClosed > 0) ? totR / nClosed : 0;
+
+   string modeTxt = effM5 ? "Confirmation M5" : "Limit";
+   AddLine("OB INDICATOR  " + EnumToString(Preset), clrAqua);
+   AddLine(_Symbol + " " + EnumToString((ENUM_TIMEFRAMES)_Period) + "  |  historique: " + IntegerToString(rates_total - start) + " bougies", clrSilver);
+   AddLine("RR 1:" + F(effRR, 1) + " | Entree: " + modeTxt + " | NoGap: " + (effNoGap ? "ON" : "OFF"), clrWhite);
+   AddLine("DispATR " + F(DispATR, 1) + " | Lookback " + IntegerToString(Lookback) + " | SL buf " + F(SLBufATR, 2) + " ATR", clrWhite);
+   AddLine("Cout/trade: " + F(CostPerTrade, 2) + " | 1 trade a la fois: " + (OneTradeAtATime ? "ON" : "OFF"), clrWhite);
+   AddLine("---------------------------------------------", clrDimGray);
+   AddLine("SIGNAUX: " + IntegerToString(nSig) + "   WIN " + IntegerToString(cWin) + "  LOSS " + IntegerToString(cLoss) + "  OPEN " + IntegerToString(cOpen), clrWhite);
+   AddLine("Annules " + IntegerToString(cCan) + " | Expires " + IntegerToString(cExp) + " | En attente " + IntegerToString(cPend) + " | Ignores " + IntegerToString(cSkip), clrSilver);
+   AddLine("---------------------------------------------", clrDimGray);
+   AddLine("RESULTATS (trades clos retenus: " + IntegerToString(nClosed) + ")", clrAqua);
+   AddLine("WIN " + IntegerToString(tw) + "  LOSS " + IntegerToString(tl) + "  Win% " + F(winPct, 1), (winPct >= 50 ? clrLime : clrOrange));
+   AddLine("Total " + SR(totR) + "  Moy " + SR(avgR) + "  PF " + F(pf, 2), (totR >= 0 ? clrLime : clrTomato));
+   AddLine("Max DD " + F(dd, 1) + "R | Pire serie: " + IntegerToString(maxStreak) + " pertes", clrWhite);
+   AddLine("Long: " + IntegerToString(nLong) + " (" + SR(rLong) + ")  Short: " + IntegerToString(nShort) + " (" + SR(rShort) + ")", clrWhite);
+   AddLine("---------------------------------------------", clrDimGray);
+   if(nSig > 0)
+   {
+      SigRec L = sigs[nSig - 1];
+      AddLine("DERNIER SIGNAL", clrAqua);
+      AddLine((L.side == 1 ? "BUY" : "SELL") + "  " + TimeToString(L.tSig, TIME_DATE | TIME_MINUTES), (L.side == 1 ? BuyColor : SellColor));
+      if(L.entered)
+         AddLine("Entry " + DoubleToString(L.entry, _Digits) + "  SL " + DoubleToString(L.sl, _Digits) + "  TP " + DoubleToString(L.tp, _Digits), clrWhite);
+      else
+         AddLine("Zone " + DoubleToString(L.entry0, _Digits) + "  SL " + DoubleToString(L.sl0, _Digits), clrWhite);
+      double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      AddLine("Statut: " + L.res + "   Prix: " + DoubleToString(bid, _Digits), clrYellow);
+      AddLine("---------------------------------------------", clrDimGray);
+   }
+   AddLine("DERNIERS TRADES", clrAqua);
+   int shown = 0;
+   for(int a = nt - 1; a >= 0 && shown < 5; a--)
+   {
+      SigRec s = sigs[taken[a]];
+      if(s.res == "OPEN") { AddLine(TimeToString(s.tEntry, TIME_DATE | TIME_MINUTES) + (s.side == 1 ? " BUY  " : " SELL ") + "OPEN", clrYellow); shown++; continue; }
+      AddLine(TimeToString(s.tEntry, TIME_DATE | TIME_MINUTES) + (s.side == 1 ? " BUY  " : " SELL ") + SR(s.R), (s.R > 0 ? clrLime : clrTomato));
+      shown++;
+   }
+   if(shown == 0) AddLine("(aucun)", clrSilver);
+   AddLine("Simulation M5 - pas un conseil financier", clrDimGray);
+
+   int w = 360, h = nLines * 15 + 12;
+   ObjectCreate(0, "OBD_bg", OBJ_RECTANGLE_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_XDISTANCE, DashX);
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_YDISTANCE, DashY);
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_XSIZE, w);
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_YSIZE, h);
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_BGCOLOR, C'18,22,30');
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_COLOR, clrDimGray);
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_BACK, false);
+   ObjectSetInteger(0, "OBD_bg", OBJPROP_SELECTABLE, false);
+   for(int i = 0; i < nLines; i++)
+   {
+      string nm = "OBD_l" + IntegerToString(i);
+      ObjectCreate(0, nm, OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, nm, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, nm, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+      ObjectSetInteger(0, nm, OBJPROP_XDISTANCE, DashX + 8);
+      ObjectSetInteger(0, nm, OBJPROP_YDISTANCE, DashY + 6 + i * 15);
+      ObjectSetString(0, nm, OBJPROP_TEXT, Lines[i]);
+      ObjectSetString(0, nm, OBJPROP_FONT, "Consolas");
+      ObjectSetInteger(0, nm, OBJPROP_FONTSIZE, 9);
+      ObjectSetInteger(0, nm, OBJPROP_COLOR, Cols[i]);
+      ObjectSetInteger(0, nm, OBJPROP_BACK, false);
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+   }
+}
+
 int OnCalculate(const int rates_total, const int prev_calculated, const datetime &time[],
                 const double &open[], const double &high[], const double &low[], const double &close[],
                 const long &tick_volume[], const long &volume[], const int &spread[])
@@ -172,6 +333,7 @@ int OnCalculate(const int rates_total, const int prev_calculated, const datetime
    if(time[rates_total - 1] == lastCalc && prev_calculated > 0) return(rates_total);
    lastCalc = time[rates_total - 1];
    ObjectsDeleteAll(0, P);
+   nSig = 0; ArrayResize(sigs, 0);
 
    // ATR = moyenne simple du True Range (comme le backtest)
    double tr[], atr[];
@@ -234,6 +396,20 @@ int OnCalculate(const int rates_total, const int prev_calculated, const datetime
          if(n5 > 0) Simulate(r5, n5, side, t0, tE, entry0, sl0, atr[i], sr);
          else { sr.entered = false; sr.entry = entry0; sr.sl = sl0; sr.tp = 0; sr.tEnd = tE; sr.res = "NO M5 DATA"; sr.tEntry = 0; }
 
+         {
+            double rk = MathAbs(sr.entry - sr.sl);
+            double Rv = 0;
+            if(sr.entered && rk > 0)
+            {
+               if(StringFind(sr.res, "WIN") == 0)  Rv = effRR - CostPerTrade / rk;
+               if(StringFind(sr.res, "LOSS") == 0) Rv = -1.0 - CostPerTrade / rk;
+            }
+            ArrayResize(sigs, nSig + 1);
+            sigs[nSig].tSig = time[j]; sigs[nSig].side = side; sigs[nSig].entry0 = entry0; sigs[nSig].sl0 = sl0;
+            sigs[nSig].entered = sr.entered; sigs[nSig].tEntry = sr.tEntry; sigs[nSig].tEnd = sr.tEnd;
+            sigs[nSig].entry = sr.entry; sigs[nSig].sl = sr.sl; sigs[nSig].tp = sr.tp; sigs[nSig].res = sr.res; sigs[nSig].R = Rv;
+            nSig++;
+         }
          color c = (side == 1) ? BuyColor : SellColor;
          string id = P + IntegerToString(i) + "_" + IntegerToString(side);
          datetime tl = sr.entered ? sr.tEntry : t0;
@@ -287,6 +463,7 @@ int OnCalculate(const int rates_total, const int prev_calculated, const datetime
          }
       }
    }
+   DrawDashboard(rates_total, time, start);
    ChartRedraw();
    return(rates_total);
 }
