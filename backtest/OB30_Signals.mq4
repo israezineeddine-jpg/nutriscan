@@ -58,19 +58,39 @@ int nt = 0;
 
 datetime lastSig   = 0;
 datetime lastAlert = 0;
+string   g_silver  = "";          // symbole argent reellement utilise
 
 string Lines[]; color Cols[]; int nLines = 0;
 
 //+------------------------------------------------------------------+
+// cherche le symbole argent: celui des inputs, sinon le plus court nom qui commence par XAGUSD
+string ResolveSilver()
+{
+   if(SymbolSelect(SilverSymbol, true)) return(SilverSymbol);
+   string best = "";
+   int tot = SymbolsTotal(false);
+   for(int i = 0; i < tot; i++)
+   {
+      string nm = SymbolName(i, false);
+      if(StringFind(nm, "XAGUSD") == 0 && (best == "" || StringLen(nm) < StringLen(best))) best = nm;
+   }
+   if(best != "" && SymbolSelect(best, true)) return(best);
+   return(SilverSymbol);
+}
+
 int OnInit()
 {
+   if(SMTWindow < 1 || HistoryBars < 500 || RR <= 0.0 || ExpireBars < 1) return(INIT_PARAMETERS_INCORRECT);
    IndicatorShortName("OB30 Signals");
-   SymbolSelect(SilverSymbol, true);
+   g_silver = ResolveSilver();
+   Print("OB30 Signals: symbole argent utilise = ", g_silver);
+   EventSetTimer(3);
    return(INIT_SUCCEEDED);
 }
 
 void OnDeinit(const int reason)
 {
+   EventKillTimer();
    ObjectsDeleteAll(0, PFX);
    ObjectsDeleteAll(0, "OB30D_");
 }
@@ -331,11 +351,12 @@ void DrawAll()
    {
       color c = (trDir[i] == 1) ? BuyColor : SellColor;
       string id = PFX + IntegerToString(i);
-      datetime tEnd = (trRes[i] == 0) ? tFar : trEnd[i];
+      datetime tEnd = (trRes[i] == 0) ? tFar : trEnd[i] + 300;
       int z = trZone[i];
       Zone(id + "_z", zOB[z], zHi[z], tEnd, zLo[z], c);
       zoneDrawn[z] = true;
-      ObjectCreate(0, id + "_a", (trDir[i] == 1) ? OBJ_ARROW_BUY : OBJ_ARROW_SELL, 0, trEnt[i], trPrice[i]);
+      ENUM_OBJECT ot = (trDir[i] == 1) ? OBJ_ARROW_BUY : OBJ_ARROW_SELL;
+      ObjectCreate(0, id + "_a", ot, 0, trEnt[i], trPrice[i]);
       ObjectSetInteger(0, id + "_a", OBJPROP_COLOR, c);
       Line(id + "_en", trEnt[i], tEnd, trPrice[i], c, STYLE_SOLID, 2);
       Line(id + "_sl", trEnt[i], tEnd, trSL[i], clrRed, STYLE_DOT, 1);
@@ -393,10 +414,10 @@ void Dashboard()
    AddLine("OB30 SIGNALS  " + _Symbol + "  (M30 OB + M5 SMT)", clrAqua);
    AddLine("TYPE D'ORDRE: MARCHE (market) a l'ouverture de la", clrYellow);
    AddLine("bougie M5 suivante. BUY=Ask  SELL=Bid  (pas de limit)", clrYellow);
-   AddLine("SL = meche bougie signal " + (string)SLFixPts + " | TP = " + F(RR, 1) + "R", clrWhite);
-   AddLine("SMT: " + (UseSMT ? ("ON " + SilverSymbol + " win " + IntegerToString(SMTWindow)) : "OFF") +
+   AddLine("SL = meche bougie signal " + F(SLFixPts, 1) + " | TP = " + F(RR, 1) + "R", clrWhite);
+   AddLine("SMT: " + (UseSMT ? ("ON " + g_silver + " win " + IntegerToString(SMTWindow)) : "OFF") +
            " | couleur: " + (NeedColor ? "oui" : "non"), clrWhite);
-   if(UseSMT && nS <= 0) AddLine("!! Pas de donnees " + SilverSymbol + " (M5) !!", clrTomato);
+   if(UseSMT && nS <= 0) AddLine("!! Pas de donnees " + g_silver + " (M5): verifier le nom du symbole !!", clrTomato);
    AddLine("-----------------------------------------------", clrDimGray);
    AddLine("Zones OB actives (en attente): " + IntegerToString(nAct), clrWhite);
    AddLine("SIGNAUX: " + IntegerToString(nt) + "  TP " + IntegerToString(w) + "  SL " + IntegerToString(l) + "  ouvert " + IntegerToString(o), clrWhite);
@@ -415,14 +436,15 @@ void Dashboard()
       AddLine("Statut: " + ResText(trRes[i]) + (trRes[i] != 0 ? ("  " + SR(trR[i])) : ""), clrYellow);
    }
    else AddLine("Aucun signal sur la periode analysee", clrSilver);
-   AddLine("Avertissement: aide visuelle, pas un conseil financier", clrDimGray);
+   AddLine("Sans filtres EA: perte jour 2% / 3 pertes de suite", clrDimGray);
+   AddLine("Aide visuelle, pas un conseil financier", clrDimGray);
 
    int h = nLines * 15 + 12;
    ObjectCreate(0, "OB30D_bg", OBJ_RECTANGLE_LABEL, 0, 0, 0);
    ObjectSetInteger(0, "OB30D_bg", OBJPROP_CORNER, CORNER_LEFT_UPPER);
    ObjectSetInteger(0, "OB30D_bg", OBJPROP_XDISTANCE, DashX);
    ObjectSetInteger(0, "OB30D_bg", OBJPROP_YDISTANCE, DashY);
-   ObjectSetInteger(0, "OB30D_bg", OBJPROP_XSIZE, 380);
+   ObjectSetInteger(0, "OB30D_bg", OBJPROP_XSIZE, 440);
    ObjectSetInteger(0, "OB30D_bg", OBJPROP_YSIZE, h);
    ObjectSetInteger(0, "OB30D_bg", OBJPROP_BGCOLOR, C'18,22,30');
    ObjectSetInteger(0, "OB30D_bg", OBJPROP_BORDER_TYPE, BORDER_FLAT);
@@ -453,18 +475,21 @@ bool LoadData()
    ArraySetAsSeries(r5, false); ArraySetAsSeries(r30, false); ArraySetAsSeries(rs, false);
    int got5 = CopyRates(_Symbol, PERIOD_M5, 0, HistoryBars, r5);
    if(got5 < 2 * SMTWindow + 10) return(false);
+   if(r5[got5 - 1].time != iTime(_Symbol, PERIOD_M5, 0)) return(false);      // historique pas encore a jour
    n5 = got5;
    ArrayResize(t5, n5); ArrayResize(o5, n5); ArrayResize(h5, n5); ArrayResize(l5, n5); ArrayResize(c5, n5);
    for(int i = 0; i < n5; i++) { t5[i] = r5[i].time; o5[i] = r5[i].open; h5[i] = r5[i].high; l5[i] = r5[i].low; c5[i] = r5[i].close; }
+   datetime tStop = t5[n5 - 1] + 3600;
 
-   int got30 = CopyRates(_Symbol, PERIOD_M30, t5[0] - 60 * 1800, TimeCurrent() + 3600, r30);
+   int got30 = CopyRates(_Symbol, PERIOD_M30, t5[0] - 60 * 1800, tStop, r30);
    if(got30 < 20) return(false);
+   if(r30[got30 - 1].time < t5[n5 - 1] - 1800) return(false);                // M30 pas encore a jour
 
    nS = 0;
    if(UseSMT)
    {
-      int gs = CopyRates(SilverSymbol, PERIOD_M5, t5[0] - 3600, TimeCurrent() + 3600, rs);
-      if(gs > 0)
+      int gs = CopyRates(g_silver, PERIOD_M5, t5[0] - 3600, tStop, rs);
+      if(gs > 2 * SMTWindow && rs[gs - 1].time >= t5[n5 - 1] - 6 * 3600)
       {
          nS = gs;
          ArrayResize(ts, nS); ArrayResize(hs, nS); ArrayResize(ls, nS);
@@ -484,17 +509,39 @@ bool LoadData()
    return(true);
 }
 
-int OnCalculate(const int rates_total, const int prev_calculated, const datetime &time[],
-                const double &open[], const double &high[], const double &low[], const double &close[],
-                const long &tick_volume[], const long &volume[], const int &spread[])
+void ShowStatus(string msg)
 {
-   datetime cur = iTime(_Symbol, PERIOD_M5, 0);
-   if(cur == 0) return(rates_total);
-   if(cur == lastSig && prev_calculated > 0) return(rates_total);   // une evaluation par bougie M5
+   if(!ShowDashboard) return;
+   ObjectsDeleteAll(0, "OB30D_");
+   string nm = "OB30D_l0";
+   ObjectCreate(0, nm, OBJ_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, nm, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+   ObjectSetInteger(0, nm, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+   ObjectSetInteger(0, nm, OBJPROP_XDISTANCE, DashX);
+   ObjectSetInteger(0, nm, OBJPROP_YDISTANCE, DashY);
+   ObjectSetString(0, nm, OBJPROP_TEXT, msg);
+   ObjectSetInteger(0, nm, OBJPROP_COLOR, clrYellow);
+   ObjectSetInteger(0, nm, OBJPROP_FONTSIZE, 9);
+   ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+}
 
-   if(!LoadData()) return(rates_total);                              // donnees pas encore pretes: on reessaie
-   if(UseSMT && nS <= 0) { Dashboard(); return(rates_total); }       // argent indisponible: on reessaie au tick suivant
-   lastSig = cur;
+void Refresh(bool force)
+{
+   static uint lastTry = 0;
+   datetime cur = iTime(_Symbol, PERIOD_M5, 0);
+   if(cur == 0) { ShowStatus("OB30: attente de l'historique M5..."); return; }
+   if(!force && cur == lastSig) return;                       // une evaluation par bougie M5
+   uint now = GetTickCount();
+   if(now - lastTry < 2000) return;                            // limite les essais
+   lastTry = now;
+
+   if(!LoadData()) { ShowStatus("OB30: chargement de l'historique M5 / M30..."); return; }
+   if(UseSMT && nS <= 0)
+   {
+      ShowStatus("OB30: pas de donnees " + g_silver + " (M5). Ouvrez son graphique M5 et verifiez le nom du symbole.");
+      return;                                                  // reessai au prochain timer
+   }
+   lastSig = t5[n5 - 1];
    Simulate();
    DrawAll();
    Dashboard();
@@ -511,5 +558,14 @@ int OnCalculate(const int rates_total, const int prev_calculated, const datetime
       }
    }
    ChartRedraw();
+}
+
+void OnTimer() { Refresh(false); }
+
+int OnCalculate(const int rates_total, const int prev_calculated, const datetime &time[],
+                const double &open[], const double &high[], const double &low[], const double &close[],
+                const long &tick_volume[], const long &volume[], const int &spread[])
+{
+   Refresh(prev_calculated == 0);
    return(rates_total);
 }
