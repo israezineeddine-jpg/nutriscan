@@ -6,3 +6,10 @@ android/
 .vscode/
 *.iml
 local.properties
+
+# graphify: graph.json, GRAPH_REPORT.md and graph.html are committed; the rest is local state
+graphify-out/cache/
+graphify-out/cost.json
+graphify-out/manifest.json
+graphify-out/.graphify_python
+graphify-out/.graphify_root

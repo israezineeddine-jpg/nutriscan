@@ -72,6 +72,17 @@ L'app demande :
 - **Caméra** : pour scanner les codes-barres
 - **Internet** : pour interroger Open Food Facts
 
+## 🧠 Graphe de connaissances (Graphify)
+
+Le dossier `graphify-out/` contient un graphe du projet généré par [Graphify](https://github.com/safishamsi/graphify) : `graph.html` (vue interactive à ouvrir dans un navigateur), `GRAPH_REPORT.md` (résumé) et `graph.json` (pour `graphify query`).
+
+```bash
+uv tool install graphifyy==0.9.95   # une fois
+graphify update .                   # après une modif du code (sans LLM)
+```
+
+Dans Claude Code, `/graphify .` reconstruit le graphe complet (y compris `www/index.html` et ce README).
+
 ## ⚖ Licence
 
 Données produits : [Open Food Facts](https://world.openfoodfacts.org) (Open Database License)
