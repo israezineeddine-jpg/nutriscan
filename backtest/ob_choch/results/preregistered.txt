@@ -1,0 +1,10 @@
+Pre-registered BEFORE fetching M1 Feb-Jul 2026 (holdout for the M1 entry):
+  M1 recipe (chosen on Aug-Nov 2026 M1 only): N=3, W=15 M1 bars, SL = zone edge +/- 1.0, session 07-21 UTC, RR 4 (also RR 3)
+  M5 recipe (chosen on M5 Jun 2025-Feb 2026, plateau check on full M5): N=3, W=6 M5 bars, SL = zone edge +/- 0.5, all sessions, RR 2.5 / 3
+  Both: spread 0.35, min risk 1.0, max risk 20, max hold 24h, Friday rules. Exits simulated on M1 for both.
+
+Result of holdout #1 (Feb-Jul 2026, M1): M1 recipe RR4 n=79 PF 2.76 +76.5R ; RR3 n=81 PF 2.20 +53.3R ; M5 recipe RR2.5 n=56 PF 2.02 +29.9R.
+Caveat found: 97% of all 768 M1 variants were positive on Feb-Jul 2026 -> favourable regime (gold falling from 5279 to ~4000, very volatile).
+
+Pre-registered BEFORE fetching M1 Jun 2025-Jan 2026 (holdout #2, bull-market regime, no parameter change):
+  same M1 recipe (N=3, W=15, zone +/- 1.0, 07-21 UTC, RR 4 and RR 3) vs same M5 recipe (N=3, W=6, zone +/- 0.5, all sessions, RR 2.5), exits on M1.
