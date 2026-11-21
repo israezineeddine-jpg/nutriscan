@@ -47,14 +47,25 @@ if (Test-Path $root) {
         }
     }
 }
-# installations en mode portable (dossier MQL5 a cote de terminal64.exe)
-foreach ($pf in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
-    if ($pf -and (Test-Path $pf)) {
-        foreach ($d in Get-ChildItem $pf -Directory -ErrorAction SilentlyContinue) {
-            if ((Test-Path (Join-Path $d.FullName "terminal64.exe")) -and (Test-Path (Join-Path $d.FullName "MQL5\Experts"))) {
-                if (-not ($terms | Where-Object { $_.Install -eq $d.FullName })) {
-                    $terms += [pscustomobject]@{ Data = $d.FullName; Install = $d.FullName }
-                }
+# installations en mode portable (dossier MQL5 a cote de terminal64.exe), sur tous les disques (C:, D:, ...)
+$places = @()
+foreach ($drv in Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue) {
+    $r = $drv.Root
+    if (-not $r -or -not (Test-Path $r)) { continue }
+    $places += $r
+    foreach ($sub in @("Program Files", "Program Files (x86)")) {
+        $p = Join-Path $r $sub
+        if (Test-Path $p) { $places += $p }
+    }
+}
+foreach ($pf in $places) {
+    $cands = @()
+    $cands += Get-ChildItem $pf -Directory -ErrorAction SilentlyContinue
+    foreach ($d1 in @($cands)) { $cands += Get-ChildItem $d1.FullName -Directory -ErrorAction SilentlyContinue }
+    foreach ($d in $cands) {
+        if ((Test-Path (Join-Path $d.FullName "terminal64.exe")) -and (Test-Path (Join-Path $d.FullName "MQL5\Experts"))) {
+            if (-not ($terms | Where-Object { $_.Install -eq $d.FullName })) {
+                $terms += [pscustomobject]@{ Data = $d.FullName; Install = $d.FullName }
             }
         }
     }
