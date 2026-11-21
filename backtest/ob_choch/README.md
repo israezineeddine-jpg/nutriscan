@@ -53,6 +53,19 @@ Le résultat dépend beaucoup de la période :
 | févr. → juil. 2026 | **+76,5 R** | +26,2 R |
 | août → nov. 2026 (période de choix M1) | +32,4 R | +0,8 R |
 
+Comparaison des RR sur 18 mois (même entrée, même SL) :
+
+| RR | M1 : win % | M1 : ROI @1 % (DD max) | M1 : pire série de pertes | M5 : win % | M5 : ROI @1 % (DD max) |
+|---|---|---|---|---|---|
+| 1:1 | 52 | +2,5 % (13 %) | 6 | 50 | −10,6 % (19 %) |
+| 1:2 | 40 | +28,6 % (19 %) | 7 | 41 | +29,1 % (26 %) |
+| 1:3 | 34 | +53,3 % (25 %) | 18 | 35 | +37,7 % (24 %) |
+| 1:4 | 33 | **+155 %** (19 %) | 18 | 31 | +26,1 % (25 %) |
+
+- Le RR 1:1 ne paie pas : le win rate reste autour de 50 % et le spread mange le reste.
+- Le RR 1:2 gagne, mais peu ; sa pire série de pertes est beaucoup plus courte (7 au lieu de 18).
+- Sur M1, le RR 1:4 est le meilleur dans chaque période sauf juin → sept. 2025, où tous les RR perdent.
+
 Tous les chiffres sont dans `results/report.txt`. Les trades sont dans `results/trades_*.csv` et la courbe dans
 `results/equity_ob_choch.png`.
 

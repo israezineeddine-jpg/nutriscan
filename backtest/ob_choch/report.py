@@ -11,8 +11,12 @@ RECIPES = {
     # name: (entry TF, N, W, SL mode, buffer $, session UTC or None, RR)
     "M1_RR4": ("M1", 3, 15, "zone", 1.0, (7, 21), 4.0),
     "M1_RR3": ("M1", 3, 15, "zone", 1.0, (7, 21), 3.0),
-    "M5_RR2.5": ("M5", 3, 6, "zone", 0.5, None, 2.5),
+    "M1_RR2": ("M1", 3, 15, "zone", 1.0, (7, 21), 2.0),
+    "M1_RR1": ("M1", 3, 15, "zone", 1.0, (7, 21), 1.0),
     "M5_RR3": ("M5", 3, 6, "zone", 0.5, None, 3.0),
+    "M5_RR2.5": ("M5", 3, 6, "zone", 0.5, None, 2.5),
+    "M5_RR2": ("M5", 3, 6, "zone", 0.5, None, 2.0),
+    "M5_RR1": ("M5", 3, 6, "zone", 0.5, None, 1.0),
 }
 PERIODS = [  # (label, start, end, role)
     ("2025-06..2025-09", "2025-06-01", "2025-10-01", "M1 holdout #2 (M1 data 6-23% missing) | M5 in-sample"),
