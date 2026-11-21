@@ -7,3 +7,5 @@ mqlsim/harness
 mqlsim/ind_gen.cpp
 mqlsim/*.csv
 mqlsim/*.txt
+mqlsim/harness_ea
+mqlsim/ea_gen.cpp

@@ -101,6 +101,31 @@ Tous les chiffres sont dans `results/report.txt`. Les trades sont dans `results/
   - Le win rate est d'environ 33 % avec RR 1:4.
   - La pire série du test : 18 pertes d'affilée en M1 (12 en M5), soit environ −17 % à 1 % de risque.
 
+## EA MetaTrader 5 : `OB_CHoCH_M1.mq5`
+
+Mêmes règles que la recette M1 : zone OB M30, CHoCH M1 (swing 3), SL au-delà de la zone ± 1 $, TP 1:4,
+entrées 07–21 UTC, un trade à la fois, 24 h maximum, fermeture le vendredi à 16:30 New York.
+
+- Ordre au marché à l'ouverture de la bougie M1 qui suit le CHoCH.
+- Lot calculé pour risquer `RiskPercent` % du solde.
+- Heure du serveur : `ServerClock = NY+7` pour FTMO, IC Markets et les autres serveurs GMT+2/+3. Pour Exness,
+  choisir `CLOCK_FIXED` avec `ServerUTCOffset = 0`.
+- Au démarrage, l'EA recharge environ 50 h d'historique pour retrouver les zones encore actives.
+- À la fin d'un test, il écrit `OB_CHoCH_trades.csv` dans le dossier `MQL5/Files` de l'agent du testeur.
+
+**Vérification (mqlsim, voir `../mqlsim/README.md`)** : le code de l'EA a été converti en C++ et exécuté tick
+par tick sur les mêmes bougies M1 que le backtest Python.
+
+| Test | Résultat |
+|---|---|
+| Heure FTMO, spread 0 | 260 trades sur 260 identiques au Python (même minute d'entrée, même sens, même SL, même résultat) |
+| Heure Exness (UTC+0) | mêmes 260 trades |
+| EA lancé au milieu des données (3 dates) | trades identiques à partir du lancement |
+| Spread 0,35 $ (bid/ask) | 262 trades, +100,8 R, PF 1,59 |
+
+Le test ne remplace pas la compilation dans MetaEditor ni le testeur MT5 : c'est la prochaine étape, avec les vraies
+données du broker.
+
 ## Reproduire
 
 ```bash

@@ -163,7 +163,7 @@ inline mstring TimeToString(datetime t, int mode = TIME_DATE | TIME_MINUTES) {
     MqlDateTime d; TimeToStruct(t, d); char b[64];
     std::string s;
     if (mode & TIME_DATE) { snprintf(b, sizeof b, "%04d.%02d.%02d", d.year, d.mon, d.day); s += b; }
-    if (mode & TIME_MINUTES) { snprintf(b, sizeof b, "%s%02d:%02d", s.empty() ? "" : " ", d.hour, d.min); s += b; }
+    if (mode & (TIME_MINUTES | TIME_SECONDS)) { snprintf(b, sizeof b, "%s%02d:%02d", s.empty() ? "" : " ", d.hour, d.min); s += b; }
     if (mode & TIME_SECONDS) { snprintf(b, sizeof b, ":%02d", d.sec); s += b; }
     return mstring(s);
 }
