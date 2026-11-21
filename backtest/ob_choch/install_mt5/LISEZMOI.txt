@@ -1,0 +1,22 @@
+OB + CHoCH M1 - installation automatique dans MetaTrader 5
+==========================================================
+
+1. Decompresse le zip dans un dossier (par exemple sur le Bureau).
+2. Connecte-toi une fois a ton compte dans MetaTrader 5 (FTMO...) avec "Enregistrer le mot de passe", puis ferme MT5.
+3. Double-clic sur INSTALL_OB_CHoCH.bat
+   (si Windows affiche "Windows a protege votre ordinateur" : Informations complementaires > Executer quand meme).
+
+Le script :
+  - trouve MetaTrader 5 (s'il y en a plusieurs, il demande lequel),
+  - copie OB_CHoCH_M1.mq5 dans MQL5\Experts et le compile,
+  - lance le backtest : XAUUSD, M1, real ticks, du 2023.01.01 a aujourd'hui, depot 100000,
+  - met le rapport et OB_CHoCH_trades.csv dans le dossier "OB_CHoCH_resultats" sur le Bureau.
+
+Envoie ces fichiers a Claude.
+
+Options (ligne de commande) :
+  INSTALL_OB_CHoCH.bat -NoTest              installer et compiler seulement
+  INSTALL_OB_CHoCH.bat -Symbol XAUUSDm      autre nom de symbole (Exness)
+  INSTALL_OB_CHoCH.bat -From 2024.01.01 -Deposit 10000
+
+Broker Exness (heure GMT+0) : dans les parametres de l'EA, mettre ServerClock = CLOCK_FIXED et ServerUTCOffset = 0.
